@@ -14,7 +14,7 @@
 
         <!-- 查询按钮 -->
         <div class="filter__actions">
-          <el-button type="primary" :icon="Search">查询</el-button>
+          <el-button type="primary" class="filter__query" :icon="Search">查询</el-button>
           <el-button class="filter__reset" :icon="Refresh" @click="handleReset">重置</el-button>
         </div>
       </div>
@@ -59,7 +59,7 @@
       <!-- 岗位列表 - 暂时使用slice进行分页 -->
       <el-table
         :data="jobList.slice((jobPagination.page - 1) * jobPagination.size, jobPagination.page * jobPagination.size)"
-        class="jobs__table">
+        class="jobs__table" @row-click="searchJobDetail">
         <el-table-column prop="name" label="岗位名称" min-width="160" />
         <el-table-column prop="company" label="公司" />
         <el-table-column prop="salary" label="薪资" />
@@ -77,6 +77,9 @@
           layout="total, sizes, ->, prev, pager, next" prev-text="<" next-text=">" />
       </div>
     </section>
+
+    <!-- AI 智能解读浮层（默认显示，后续由表格行点击控制显隐与位置） -->
+    <AiInterpretCard v-model="interpretVisible" :left="interpretX" :top="interpretY" :searchJobData="searchJobData" />
   </div>
 </template>
 
@@ -84,6 +87,7 @@
 import { reactive, ref } from 'vue'
 import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
 
+import AiInterpretCard from '@/components/ai-interpret-card.vue'
 import ChartCard from '@/components/chart-card.vue'
 import { useChart } from '@/composables/useChart'
 
@@ -92,7 +96,7 @@ interface FilterItem {
   prop: 'city' | 'experience' | 'salary' | 'keyword'
   label: string
   defaultLabel: string,
-  options?: string[]
+  options?: string[],
 }
 
 
@@ -447,6 +451,38 @@ const jobList: JobRow[] = [
 // 分页状态（总数为静态值，待接入接口后由返回结果驱动）
 const jobPagination = reactive({ page: 1, size: 5, total: 128 })
 
+// AI 智能解读浮层
+const interpretVisible = ref(false)
+const searchJobData = ref<JobRow>({
+  name: '',
+  company: '',
+  salary: '',
+  experience: '',
+  tags: [],
+})
+// 调整窗口出现位置
+const CARD_HEIGHT = 420 // 卡片高度
+const CARD_WIDTH = 420 // 卡片宽度
+const CARD_GAP = 12 // 卡片间距
+
+// 默认鼠标位置
+const interpretX = ref(0)
+const interpretY = ref(0)
+const searchJobDetail = async (_row: JobRow, _column: unknown, event: MouseEvent) => {
+  // 数据赋值
+  interpretVisible.value = true
+  searchJobData.value = _row
+  console.log(searchJobData.value)
+
+  // 计算鼠标位置
+  interpretX.value =
+    event.clientX + CARD_GAP + CARD_WIDTH > window.innerWidth ? event.clientX - CARD_WIDTH - CARD_GAP : event.clientX + CARD_GAP // 翻到鼠标右侧
+  interpretY.value =
+    event.clientY + CARD_GAP + CARD_HEIGHT > window.innerHeight ? event.clientY - CARD_HEIGHT - CARD_GAP : event.clientY + CARD_GAP // 翻到鼠标下方
+  // 显示浮层
+  interpretVisible.value = true
+}
+
 // 重置筛选条件
 const handleReset = () => {
   filterItems.forEach((item) => {
@@ -515,6 +551,10 @@ const handleReset = () => {
   justify-content: center;
   gap: 12px;
   height: 36px;
+}
+
+.filter__query {
+  --el-button-hover-bg-color: #3d74ff;
 }
 
 .filter__actions :deep(.el-button) {

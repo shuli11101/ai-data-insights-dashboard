@@ -19,4 +19,8 @@ body {
   color: #1f2937;
   background: #F5F7FA;
 }
+
+:root {
+  --el-color-primary: #409EFF;
+}
 </style>
