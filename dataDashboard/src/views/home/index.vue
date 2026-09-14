@@ -42,12 +42,47 @@
         <div ref="experienceChartEl" class="charts__canvas"></div>
       </ChartCard>
     </section>
+
+    <!-- 岗位数据表格 -->
+    <!-- 标题 -->
+    <section class="jobs">
+      <div class="jobs__head">
+        <h3 class="jobs__title">
+          <el-icon class="jobs__title-icon">
+            <Tickets />
+          </el-icon>
+          <span>岗位数据</span>
+        </h3>
+        <el-button :icon="Refresh">刷新</el-button>
+      </div>
+
+      <!-- 岗位列表 - 暂时使用slice进行分页 -->
+      <el-table
+        :data="jobList.slice((jobPagination.page - 1) * jobPagination.size, jobPagination.page * jobPagination.size)"
+        class="jobs__table">
+        <el-table-column prop="name" label="岗位名称" min-width="160" />
+        <el-table-column prop="company" label="公司" />
+        <el-table-column prop="salary" label="薪资" />
+        <el-table-column prop="experience" label="经验" />
+        <el-table-column label="技能标签">
+          <template #default="{ row }">
+            <el-tag v-for="tag in row.tags" :key="tag" class="jobs__tag">{{ tag }}</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="jobs__foot">
+        <el-pagination v-model:current-page="jobPagination.page" v-model:page-size="jobPagination.size"
+          :page-sizes="[5, 10, 20, 50]" :total="jobPagination.total" :pager-count="5"
+          layout="total, sizes, ->, prev, pager, next" prev-text="<" next-text=">" />
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
 
 import ChartCard from '@/components/chart-card.vue'
 import { useChart } from '@/composables/useChart'
@@ -326,6 +361,92 @@ const experienceChartEl = useChart({
   ],
 })
 
+/** 岗位数据表格行 */
+interface JobRow {
+  name: string
+  company: string
+  salary: string
+  experience: string
+  tags: string[]
+}
+
+// 岗位数据列表（静态数据，待接入接口）
+const jobList: JobRow[] = [
+  {
+    name: '大模型算法工程师',
+    company: '腾讯',
+    salary: '30.50K',
+    experience: '3-5年',
+    tags: ['Python', 'PyTorch', 'LLM'],
+  },
+  {
+    name: 'AI 产品经理',
+    company: '华为',
+    salary: '25.40K',
+    experience: '5-10年',
+    tags: ['LLM', 'RAG', '产品'],
+  },
+  {
+    name: '机器学习工程师',
+    company: '比亚迪',
+    salary: '20.35K',
+    experience: '3-5年',
+    tags: ['Python', 'TensorFlow'],
+  },
+  {
+    name: 'NLP 算法专家',
+    company: '平安科技',
+    salary: '35.60K',
+    experience: '5-10年',
+    tags: ['NLP', '大模型'],
+  },
+  {
+    name: '计算机视觉工程师',
+    company: '大疆',
+    salary: '25.45K',
+    experience: '3-5年',
+    tags: ['CV', 'PyTorch'],
+  },
+  {
+    name: 'AI 数据工程师',
+    company: '微众银行',
+    salary: '18.30K',
+    experience: '1-3年',
+    tags: ['数据', 'RAG'],
+  },
+  {
+    name: '提示词工程师',
+    company: '商汤科技',
+    salary: '22.38K',
+    experience: '1-3年',
+    tags: ['LLM', 'Prompt'],
+  },
+  {
+    name: 'AI 训练师',
+    company: '联想',
+    salary: '15.25K',
+    experience: '应届',
+    tags: ['大模型', '数据标注'],
+  },
+  {
+    name: '强化学习研究员',
+    company: '腾讯',
+    salary: '40.70K',
+    experience: '5-10年',
+    tags: ['RL', 'PyTorch'],
+  },
+  {
+    name: '深度学习框架工程师',
+    company: '华为',
+    salary: '28.50K',
+    experience: '3-5年',
+    tags: ['CUDA', 'PyTorch'],
+  },
+]
+
+// 分页状态（总数为静态值，待接入接口后由返回结果驱动）
+const jobPagination = reactive({ page: 1, size: 5, total: 128 })
+
 // 重置筛选条件
 const handleReset = () => {
   filterItems.forEach((item) => {
@@ -430,6 +551,76 @@ const handleReset = () => {
   height: 100%;
 }
 
+/* 岗位数据表格 */
+.jobs {
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow:
+    0 1px 3px 0 rgba(15, 23, 42, 0.03),
+    0 1px 2px 0 rgba(15, 23, 42, 0.04);
+}
+
+.jobs__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+
+.jobs__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: 'WenQuanYi Zen Hei', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  color: #1f2937;
+}
+
+.jobs__title-icon {
+  font-size: 18px;
+  color: #4e9bf0;
+}
+
+.jobs__table {
+  --el-table-border-color: #f1f5f9;
+  --el-table-header-bg-color: #f8fafc;
+  --el-table-header-text-color: #64748b;
+  --el-table-text-color: #1f2937;
+  --el-table-row-hover-bg-color: #f8fafc;
+}
+
+/* 表头不加粗，与设计稿一致（覆盖 Element Plus 默认的 600） */
+.jobs__table :deep(.el-table__header th.el-table__cell) {
+  font-weight: 400;
+}
+
+/* 行高对齐设计稿（约 46px） */
+.jobs__table :deep(.el-table__cell) {
+  padding: 12px 0;
+}
+
+.jobs__tag {
+  --el-tag-bg-color: #eaf3fe;
+  --el-tag-border-color: transparent;
+  --el-tag-text-color: #4e9bf0;
+
+  margin-right: 6px;
+}
+
+.jobs__tag:last-child {
+  margin-right: 0;
+}
+
+.jobs__foot {
+  padding-top: 16px;
+}
+
 /* 中等屏幕：4 列，按钮组换行并靠右 */
 @media (max-width: 1199.98px) {
   .filter__grid {
@@ -446,6 +637,12 @@ const handleReset = () => {
   }
 }
 
+/* table 数据中的技能标签tag 增加上下gap */
+.jobs__tag {
+  margin-bottom: 4px;
+}
+
+
 /* 平板：2 列 */
 @media (max-width: 991.98px) {
   .filter__grid {
@@ -461,6 +658,16 @@ const handleReset = () => {
 
   .filter {
     padding: 16px;
+  }
+
+  .jobs {
+    padding: 16px;
+  }
+
+  /* 手机端分页一行放不下，允许换行 */
+  .jobs__foot :deep(.el-pagination) {
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   .filter__grid {
