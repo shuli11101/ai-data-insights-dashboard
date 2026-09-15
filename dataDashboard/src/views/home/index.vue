@@ -14,7 +14,7 @@
 
         <!-- 查询按钮 -->
         <div class="filter__actions">
-          <el-button type="primary" class="filter__query" :icon="Search">查询</el-button>
+          <el-button @click="handleQuery" type="primary" class="filter__query" :icon="Search">查询</el-button>
           <el-button class="filter__reset" :icon="Refresh" @click="handleReset">重置</el-button>
         </div>
       </div>
@@ -481,6 +481,11 @@ const searchJobDetail = async (_row: JobRow, _column: unknown, event: MouseEvent
     event.clientY + CARD_GAP + CARD_HEIGHT > window.innerHeight ? event.clientY - CARD_HEIGHT - CARD_GAP : event.clientY + CARD_GAP // 翻到鼠标下方
   // 显示浮层
   interpretVisible.value = true
+}
+
+//  查询函数
+const handleQuery = () => {
+  console.log('筛选条件:', query)
 }
 
 // 重置筛选条件

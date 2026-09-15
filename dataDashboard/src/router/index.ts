@@ -13,6 +13,16 @@ const router = createRouter({
           name: 'home',
           component: () => import('@/views/home/index.vue'),
         },
+        {
+          path: '/ai-analyse',
+          name: 'ai-analyse',
+          component: () => import('@/views/aiAnalyse/index.vue'),
+        },
+        {
+          path: '/about',
+          name: 'about',
+          component: () => import('@/views/about/index.vue'),
+        },
       ],
     },
   ],
