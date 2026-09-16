@@ -1,6 +1,6 @@
 <template>
   <div class="ai-analyse">
-    <!--个人技能篇评估，JD岗位拆解部分 -->
+    <!--header部分 个人技能篇评估，JD岗位拆解部分 -->
     <div class="header_analysis">
       <div class="header_analysis_content">
         <div @click="changeAnalysis('1')" class="header_analysis_item"
@@ -38,11 +38,130 @@
         </div>
       </div>
     </div>
+
+    <!-- main部分 分析结果 -->
+    <transition name="fade">
+      <div v-if="isAnalysis" class="main_result">
+        <div class="main_result_title">
+          <div>分析结果</div>
+          <div>基于 1,248 条深圳 AI 岗位样本</div>
+        </div>
+        <div class="main_result_content">
+          <div class="main_result_item match_rate">
+            <div class="main_result_item_content">
+              <svg color="#409EFF" width="24" height="24" viewBox="0 0 49 48" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M7.4573 37C5.7019 33.9605 4.77783 30.5107 4.77783 27C4.77783 15.9543 13.7321 7 24.7778 7C35.8235 7 44.7778 15.9543 44.7778 27C44.7778 30.5107 43.8537 33.9605 42.0983 37"
+                  stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M24.7778 20V30" transform="rotate(30 24.7778 27)" stroke="currentColor" stroke-width="4"
+                  stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>匹配度评分</span>
+            </div>
+            <div class="main_result_item_progress">
+              <div class="main_result_item_progress_rate">
+                <span style="font-size: 32px; font-weight: 600; color:#409EFF;">86</span>
+                <span style="font-size: 18px; color: #64748B;">/100</span>
+              </div>
+              <div class="main_result_item_progress_bar">
+                <el-progress :percentage="86" :show-text="false"></el-progress>
+              </div>
+              <div class="main_result_item_progress_text">
+                <span style="color: #64748B;">超过 78% 的同岗位候选人</span>
+              </div>
+            </div>
+          </div>
+          <div class="main_result_item salary_rate">
+            <div class="main_result_item_content">
+              <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M3.982 11.9689V7A3 3 0 0 1 6.982 4H33.397A3 3 0 0 1 36.397 7V11.9889" stroke="currentColor"
+                  stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path
+                  d="M4 14C4 12.8954 4.89543 12 6 12H42C43.1046 12 44 12.8954 44 14V42C44 43.1046 43.1046 44 42 44H6C4.89543 44 4 43.1046 4 42V14Z"
+                  fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+                <path d="M35.25 33H44V23H35.25C32.3505 23 30 25.2386 30 28C30 30.7614 32.3505 33 35.25 33Z" fill="none"
+                  stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+                <path d="M44 16.5V40.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+              </svg>
+              <span>薪资预估</span>
+            </div>
+            <div class="main_result_item_progress">
+              <div class="main_result_item_progress_region">
+                <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">25k - 38k</span>
+                <span class="text" style=" padding-bottom: 8px;">深圳·AI算法工程师</span>
+                <span class="text">市场中位数 30k</span>
+              </div>
+            </div>
+          </div>
+          <div class="main_result_item key_advantage">
+            <div class="main_result_item_content">
+              <svg color="#67C23A" width="24" height="24" viewBox="0 0 48 48" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M24 44C29.5228 44 34.5228 41.7614 38.1421 38.1421C41.7614 34.5228 44 29.5228 44 24C44 18.4772 41.7614 13.4772 38.1421 9.85786C34.5228 6.23858 29.5228 4 24 4C18.4772 4 13.4772 6.23858 9.85786 9.85786C6.23858 13.4772 4 18.4772 4 24C4 29.5228 6.23858 34.5228 9.85786 38.1421C13.4772 41.7614 18.4772 44 24 44Z"
+                  fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+                <path d="M16 24L22 30L34 18" stroke="currentColor" stroke-width="4" stroke-linecap="round"
+                  stroke-linejoin="round" />
+              </svg>
+              <span>核心优势</span>
+            </div>
+            <div class="main_result_item_progress" style="gap: 18px;">
+              <div class="content" v-for="text in coreAdvantages" :key="text">
+                <svg color="#67C23A" width="16" height="16" viewBox="0 0 48 48" fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path d="M43 11L16.875 37L5 25.1818" stroke="currentColor" stroke-width="4" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+                <span>{{ text }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="main_result_item skill_gaps">
+            <div class="main_result_item_content">
+              <el-icon :size="24" color="#E6A23C">
+                <CirclePlus />
+              </el-icon>
+              <span>待补充技能</span>
+            </div>
+            <div class="main_result_item_progress" style="gap: 18px;">
+              <div class="content" v-for="text in skillGaps" :key="text">
+                <el-icon :size="18" color="#E6A23C">
+                  <Warning />
+                </el-icon>
+                <span style="color: #475569;">{{ text }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="main_result_item job_advice">
+            <div class="main_result_item_content">
+              <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="4" />
+                <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="4" />
+                <circle cx="24" cy="24" r="5" stroke="currentColor" stroke-width="4" />
+              </svg>
+              <span>求职建议</span>
+            </div>
+            <div class="main_result_item_progress" style="gap: 18px;">
+              <div class="content" v-for="(text, index) in jobAdvice" :key="text">
+                <div class="circle">
+                  {{ index + 1 }}
+                </div>
+                <span style="color: #475569;">{{ text }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { CirclePlus, Warning } from '@element-plus/icons-vue'
 
 // 切换分析类型
 const activeTab = ref('1')
@@ -52,6 +171,7 @@ const changeAnalysis = (tab: string) => {
 
 // 文本框内容
 const content = ref('')
+const isAnalysis = ref(false)
 
 // 开始分析
 const startAnalysis = () => {
@@ -59,6 +179,7 @@ const startAnalysis = () => {
   if (!content.value.trim()) {
     return
   }
+  isAnalysis.value = true
 
   // 判断是类型
   if (activeTab.value === '1') {
@@ -69,15 +190,43 @@ const startAnalysis = () => {
     console.log('JD岗位拆解：', content.value)
   }
 }
+
+// 核心优势
+const coreAdvantages = ref([
+  'Python 工程化能力扎实',
+  'PyTorch 模型训练与微调',
+  'RAG 检索增强实战经验',
+  '跨团队需求拆解与沟通',
+])
+
+// 待补充技能
+const skillGaps = ref([
+  'LangChain 工程化落地',
+  '向量数据库调优（Milvus）',
+  '模型量化与推理加速',
+  'A/B 实验与指标体系建设',
+])
+
+// 求职建议
+const jobAdvice = ref([
+  '优先投递大模型应用与 AI 平台方向，3-5 年经验岗位匹配度最高',
+  '简历中用指标量化模型效果，例如准确率提升比例与线上 QPS',
+  '面试前准备 1-2 个端到端项目复盘，覆盖数据、训练、部署全链路'
+])
 </script>
 
 <style scoped>
+.ai-analyse {
+  display: flex;
+  flex-direction: column;
+  padding: 30px 60px;
+}
+
 .header_analysis {
   display: flex;
   flex-direction: column;
   height: 400px;
   background-color: #fff;
-  margin: 30px 60px;
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
 }
@@ -160,5 +309,139 @@ const startAnalysis = () => {
 .main_button :deep(.el-button:not(.is-disabled):hover) {
   background-color: #3d74ff;
   border-color: #3d74ff;
+}
+
+/* 分析结果部分 */
+.main_result {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+/* 淡入淡出效果 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY (10px);
+}
+
+.main_result_title {
+  display: flex;
+  justify-content: space-between;
+  color: #1F2937;
+  font-size: 16px;
+}
+
+/* 分析结果内容：第 1、2 行各 2 个，第 3 行 1 个 */
+.main_result_content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.main_result_item {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 最后一块独占一整行 */
+.main_result_content> :last-child {
+  grid-column: 1 / -1;
+}
+
+.main_result_item_content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  color: #1F2937;
+}
+
+.match_rate,
+.salary_rate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 163px;
+}
+
+.key_advantage,
+.skill_gaps {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 196px;
+}
+
+.job_advice {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 50px;
+}
+
+.main_result_item_progress {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 11px;
+}
+
+/* 匹配度评分部分 */
+.main_result_item_progress_rate {
+  margin-bottom: 6px;
+}
+
+.main_result_item_progress_text {
+  padding: 6px 0;
+}
+
+/* 薪资预估部分 */
+.main_result_item_progress_region {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.main_result_item_progress_region .text {
+  font-size: 16px;
+  color: #64748B;
+  letter-spacing: 1.5px;
+}
+
+/* 核心优势部分 */
+.main_result_item_progress .content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 求职建议部分 */
+.main_result_item_progress .circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #409EFF;
+  font-weight: 600;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #ECF5FF;
+}
+
+/* 手机端：单列堆叠 */
+@media (max-width: 599.98px) {
+  .main_result_content {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>
