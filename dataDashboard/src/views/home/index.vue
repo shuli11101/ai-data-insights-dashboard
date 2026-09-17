@@ -687,16 +687,8 @@ const handleReset = () => {
   margin-bottom: 4px;
 }
 
-
-/* 平板：2 列 */
-@media (max-width: 991.98px) {
-  .filter__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 /* 手机端：单列堆叠，按钮等宽铺满 */
-@media (max-width: 599.98px) {
+@media (max-width: 1023.98px) {
   .home {
     padding: 12px;
   }

@@ -52,7 +52,7 @@
       </el-menu-item>
       <el-menu-item class="aside__menu-item" index="/about">
         <el-icon>
-          <HomeFilled />
+          <Document />
         </el-icon>
         <template #title>
           <span>About</span>
@@ -66,7 +66,7 @@
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { Expand, Fold, HomeFilled } from '@element-plus/icons-vue'
+import { HomeFilled, Document } from '@element-plus/icons-vue'
 
 /** 侧边栏是否收起（收起后只留图标） */
 const props = defineProps({

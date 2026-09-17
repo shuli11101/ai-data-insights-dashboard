@@ -438,8 +438,8 @@ const jobAdvice = ref([
   background-color: #ECF5FF;
 }
 
-/* 手机端：单列堆叠 */
-@media (max-width: 599.98px) {
+/* 窄屏：单列堆叠（视口 − 240 侧栏 − 120 页面内边距 ≈ 可用宽度，两列需 ≥656px） */
+@media (max-width: 1023.98px) {
   .main_result_content {
     grid-template-columns: minmax(0, 1fr);
   }
