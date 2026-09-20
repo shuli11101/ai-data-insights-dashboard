@@ -63,7 +63,7 @@
             <span class="ai-interpret__score-label">匹配度</span>
             <span class="ai-interpret__score-value">86</span>
           </div>
-          <p class="ai-interpret__line">优势：{{ searchJobData.tags.join('、') || '无' }}
+          <p class="ai-interpret__line">优势：{{ searchJobData.skillTags.join('、') || '无' }}
           </p>
           <p class="ai-interpret__line">建议：需AI生成</p>
         </div>
@@ -86,11 +86,12 @@ interface Props {
   left?: number
   // 数据
   searchJobData: {
-    name: string
+    id: number
     company: string
-    salary: string
+    minSalary: number
+    maxSalary: number
     experience: string
-    tags: string[]
+    skillTags: string[]
   }
 }
 

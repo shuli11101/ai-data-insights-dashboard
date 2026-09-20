@@ -57,16 +57,16 @@
       </div>
 
       <!-- 岗位列表 - 暂时使用slice进行分页 -->
-      <el-table
-        :data="jobList.slice((jobPagination.page - 1) * jobPagination.size, jobPagination.page * jobPagination.size)"
-        class="jobs__table" @row-click="searchJobDetail">
-        <el-table-column prop="name" label="岗位名称" min-width="160" />
-        <el-table-column prop="company" label="公司" />
-        <el-table-column prop="salary" label="薪资" />
-        <el-table-column prop="experience" label="经验" />
+      <el-table :data="jobList" class="jobs__table" @row-click="searchJobDetail">
+        <el-table-column prop="job_name" label="岗位名称" min-width="80" />
+        <el-table-column align="center" prop="company" label="公司" />
+        <el-table-column align="center" label="薪资（单位：K）">
+          <template #default="{ row }">{{ row.salary_min }}-{{ row.salary_max }}</template>
+        </el-table-column>
+        <el-table-column align="center" prop="experience" label="经验" />
         <el-table-column label="技能标签">
           <template #default="{ row }">
-            <el-tag v-for="tag in row.tags" :key="tag" class="jobs__tag">{{ tag }}</el-tag>
+            <el-tag v-for="tag in row.skill_tags" :key="tag" class="jobs__tag">{{ tag }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -84,12 +84,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
 
 import AiInterpretCard from '@/components/ai-interpret-card.vue'
 import ChartCard from '@/components/chart-card.vue'
 import { useChart } from '@/composables/useChart'
+import { getJobList } from '@/api/server'
 
 // 筛选项配置
 interface FilterItem {
@@ -367,98 +368,31 @@ const experienceChartEl = useChart({
 
 /** 岗位数据表格行 */
 interface JobRow {
-  name: string
+  id: number
+  jobName: string
   company: string
-  salary: string
+  minSalary: number
+  maxSalary: number
   experience: string
-  tags: string[]
+  skillTags: string[]
 }
 
 // 岗位数据列表（静态数据，待接入接口）
-const jobList: JobRow[] = [
-  {
-    name: '大模型算法工程师',
-    company: '腾讯',
-    salary: '30.50K',
-    experience: '3-5年',
-    tags: ['Python', 'PyTorch', 'LLM'],
-  },
-  {
-    name: 'AI 产品经理',
-    company: '华为',
-    salary: '25.40K',
-    experience: '5-10年',
-    tags: ['LLM', 'RAG', '产品'],
-  },
-  {
-    name: '机器学习工程师',
-    company: '比亚迪',
-    salary: '20.35K',
-    experience: '3-5年',
-    tags: ['Python', 'TensorFlow'],
-  },
-  {
-    name: 'NLP 算法专家',
-    company: '平安科技',
-    salary: '35.60K',
-    experience: '5-10年',
-    tags: ['NLP', '大模型'],
-  },
-  {
-    name: '计算机视觉工程师',
-    company: '大疆',
-    salary: '25.45K',
-    experience: '3-5年',
-    tags: ['CV', 'PyTorch'],
-  },
-  {
-    name: 'AI 数据工程师',
-    company: '微众银行',
-    salary: '18.30K',
-    experience: '1-3年',
-    tags: ['数据', 'RAG'],
-  },
-  {
-    name: '提示词工程师',
-    company: '商汤科技',
-    salary: '22.38K',
-    experience: '1-3年',
-    tags: ['LLM', 'Prompt'],
-  },
-  {
-    name: 'AI 训练师',
-    company: '联想',
-    salary: '15.25K',
-    experience: '应届',
-    tags: ['大模型', '数据标注'],
-  },
-  {
-    name: '强化学习研究员',
-    company: '腾讯',
-    salary: '40.70K',
-    experience: '5-10年',
-    tags: ['RL', 'PyTorch'],
-  },
-  {
-    name: '深度学习框架工程师',
-    company: '华为',
-    salary: '28.50K',
-    experience: '3-5年',
-    tags: ['CUDA', 'PyTorch'],
-  },
-]
+const jobList = ref<JobRow[]>([])
 
 // 分页状态（总数为静态值，待接入接口后由返回结果驱动）
-const jobPagination = reactive({ page: 1, size: 5, total: 128 })
+const jobPagination = reactive({ page: 1, size: 5, total: 0 })
 
 // AI 智能解读浮层
 const interpretVisible = ref(false)
 const searchJobData = ref<JobRow>({
-  name: '',
+  id: 0,
   company: '',
-  salary: '',
+  minSalary: 0,
+  maxSalary: 0,
+  jobName: '',
   experience: '',
-  tags: [],
+  skillTags: [],
 })
 // 调整窗口出现位置
 const CARD_HEIGHT = 420 // 卡片高度
@@ -494,6 +428,29 @@ const handleReset = () => {
     query[item.prop] = ''
   })
 }
+
+// 页面渲染时
+onMounted(() => {
+  getJob()
+})
+
+//  获取岗位数据
+const getJob = async () => {
+  try {
+    const res = await getJobList({ page: jobPagination.page, size: jobPagination.size })
+    jobList.value = res.list
+    jobPagination.total = res.total
+    console.log(jobList.value)
+  } catch (error) {
+    console.log(error)
+  }
+}
+
+// 页码或每页条数变化（换页）时重新请求
+watch(() => [jobPagination.page, jobPagination.size], () => {
+  getJob()
+},
+)
 </script>
 
 <style scoped>
