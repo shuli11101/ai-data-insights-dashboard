@@ -1,24 +1,5 @@
 <template>
   <div class="home">
-    <!-- 筛选区 -->
-    <section class="filter">
-      <div class="filter__grid">
-        <div v-for="item in filterItems" :key="item.prop" class="filter__item">
-          <span class="filter__label">{{ item.label }}</span>
-          <el-select v-model="query[item.prop]" placeholder="请选择" class="filter__select">
-            <div v-for="option in item.options" :key="option">
-              <el-option :label="option" :value="option" />
-            </div>
-          </el-select>
-        </div>
-
-        <!-- 查询按钮 -->
-        <div class="filter__actions">
-          <el-button @click="handleQuery" type="primary" class="filter__query" :icon="Search">查询</el-button>
-          <el-button class="filter__reset" :icon="Refresh" @click="handleReset">重置</el-button>
-        </div>
-      </div>
-    </section>
 
     <!-- 图表区 -->
     <section class="charts">
@@ -41,6 +22,27 @@
       <ChartCard :title="experienceChart.title" :subtitle="experienceChart.subtitle">
         <div ref="experienceChartEl" class="charts__canvas"></div>
       </ChartCard>
+    </section>
+
+
+    <!-- 筛选区 -->
+    <section class="filter">
+      <div class="filter__grid">
+        <div v-for="item in filterItems" :key="item.prop" class="filter__item">
+          <span class="filter__label">{{ item.label }}</span>
+          <el-select v-model="query[item.prop]" placeholder="请选择" class="filter__select">
+            <div v-for="option in item.options" :key="option.value">
+              <el-option :label="option.label" :value="option.value" />
+            </div>
+          </el-select>
+        </div>
+
+        <!-- 查询按钮 -->
+        <div class="filter__actions">
+          <el-button @click="handleQuery" type="primary" class="filter__query" :icon="Search">查询</el-button>
+          <el-button class="filter__reset" :icon="Refresh" @click="handleReset">重置</el-button>
+        </div>
+      </div>
     </section>
 
     <!-- 岗位数据表格 -->
@@ -84,40 +86,112 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch, computed } from 'vue'
 import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
 
 import AiInterpretCard from '@/components/ai-interpret-card.vue'
 import ChartCard from '@/components/chart-card.vue'
 import { useChart } from '@/composables/useChart'
-import { getJobList } from '@/api/server'
+import { getJobList, getSalaryRange, getSkillTags, getDistrict, getExperienceSalary, getCity, getKeywords } from '@/api/server'
 
 // 筛选项配置
 interface FilterItem {
   prop: 'city' | 'experience' | 'salary' | 'keyword'
   label: string
   defaultLabel: string,
-  options?: string[],
+  options: { label: string, value: string }[],
 }
 
 
 // 筛选列表
-const cities = ref<string[]>(['全部城市', '北京', '上海', '广州', '深圳'])
-const experiences = ref<string[]>(['不限经验', '1年以下', '1-3年', '3-5年', '5年以上'])
-const salaries = ref<string[]>(['不限薪资', '100k以下', '100k-200k', '200k以上'])
-const keywords = ref<string[]>(['全部技术', 'AI', '数据', '分析', '可视化'])
+const cities = ref<{ label: string, value: string }[]>([])
+const experiences = ref<{ label: string, value: string }[]>([
+  {
+    label: '不限经验',
+    value: '',
+  },
+  {
+    label: '应届',
+    value: '应届',
+  },
+  {
+    label: '1年以下',
+    value: '0-1',
+  },
+  {
+    label: '1-3年',
+    value: '1-3',
+  },
+  {
+    label: '3-5年',
+    value: '3-5',
+  },
+  {
+    label: '5年以上',
+    value: '5-',
+  }
+])
+const salaries = ref<{ label: string, value: string }[]>([
+  {
+    label: '不限薪资',
+    value: '',
+  },
+  {
+    label: '5K以下',
+    value: '0-5',
+  },
+  {
+    label: '5K-10K',
+    value: '5-10',
+  },
+  {
+    label: '10K-15K',
+    value: '10-15',
+  },
+  {
+    label: '15K-20K',
+    value: '15-20',
+  },
+  {
+    label: '20K-25K',
+    value: '20-25',
+  },
+  {
+    label: '25K-30K',
+    value: '25-30',
+  },
+  {
+    label: '30K-35K',
+    value: '30-35',
+  },
+  {
+    label: '35K-40K',
+    value: '35-40',
+  },
+  {
+    label: '40K以上',
+    value: '40-',
+  },
+])
+const keywords = ref<{ label: string, value: string }[]>([])
 
 /** 筛选项配置，各选项列表待接入接口后补充 */
-const filterItems: FilterItem[] = [
+const filterItems = computed<FilterItem[]>(() => [
   { prop: 'city', label: '城市', defaultLabel: '全部城市', options: cities.value },
   { prop: 'experience', label: '工作经验', defaultLabel: '不限经验', options: experiences.value },
-  { prop: 'salary', label: '薪资区间', defaultLabel: '不限薪资', options: salaries.value },
+  { prop: 'salary', label: '薪资区间（单位：K/月）', defaultLabel: '不限薪资', options: salaries.value },
   { prop: 'keyword', label: '技术关键词', defaultLabel: '全部技术', options: keywords.value },
-]
-
+])
 
 // 查询数据
-const query = reactive<Record<FilterItem['prop'], string>>({
+interface JobQuery {
+  city: string
+  experience: string
+  salary: string
+  keyword: string
+}
+
+const query = reactive<JobQuery>({
   city: '',
   experience: '',
   salary: '',
@@ -125,59 +199,42 @@ const query = reactive<Record<FilterItem['prop'], string>>({
 })
 
 // 薪资分布：柱状图（静态数据，待接入接口）
+const salaryData = ref<number[]>([])
+
 const salaryChart = {
   title: '薪资分布',
   subtitle: '岗位薪资区间分布（单位：个）',
-  categories: ['5-10K', '10-15K', '15-20K', '20-30K', '30-40K', '40K+'],
-  values: [42, 85, 128, 93, 57, 20],
+  categories: ['0-10K', '10-15K', '15-20K', '20-25K', '25-30K', '30-35K', '35-40K', '40K+'],
+  values: salaryData.value,
   colors: ['#8cc4f4', '#4e9bf0', '#5b8ae6', '#a8cef5', '#c6dcf8', '#c6cbd2'],
 }
 
-// 技术栈热度：条形图（静态数据，待接入接口）
+
+// 技术栈热度：条形图
+const skillTags = ref<{ skillName: string, hotCount: number }[]>([])
 const stackChart = {
   title: '技术栈热度',
   subtitle: '热门技术词条提及次数',
-  categories: [
-    'Python',
-    '大模型',
-    'LLM',
-    'PyTorch',
-    'LangChain',
-    '计算机视觉',
-    'NLP',
-    'RAG',
-    '数据工程',
-    'TensorFlow',
-  ],
-  values: [95, 91, 86, 82, 77, 71, 66, 63, 61, 58],
 }
 
-// 深圳各区岗位数量：环形图（静态数据，待接入接口）
+// 各地方岗位数量：环形图
+const jobDistrict = ref<{ region: string, jobRatio: number }[]>([])
 const districtChart = {
-  title: '深圳各区岗位数量',
+  title: '地方岗位数量',
   subtitle: '各行政区招聘岗位占比',
   colors: ['#4e9bf0', '#4c6fe0', '#8cc4f4', '#17bca8', '#f5a623', '#bfd9f5', '#c6cbd2'],
-  data: [
-    { name: '南山区', value: 42 },
-    { name: '福田区', value: 25 },
-    { name: '龙岗区', value: 12 },
-    { name: '宝安区', value: 8 },
-    { name: '龙华区', value: 7 },
-    { name: '罗湖区', value: 4 },
-    { name: '其他', value: 2 },
-  ],
 }
 
-// 经验与平均薪资：面积折线图（静态数据，待接入接口）
+// 经验与平均薪资：面积折线图
+const expSalary = ref<{ experience: string, avgSalary: number }[]>([])
+
 const experienceChart = {
   title: '经验与平均薪资',
   subtitle: '不同经验年限平均月薪（k）',
-  categories: ['应届', '1-3年', '3-5年', '5-10年', '10年+'],
-  values: [11, 18, 26, 38, 52],
 }
 
 // 薪资分布
-const salaryChartEl = useChart({
+const salaryChartEl = useChart(() => ({
   color: salaryChart.colors,
   grid: { top: 8, right: 8, bottom: 4, left: 0, containLabel: true },
   tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
@@ -190,8 +247,8 @@ const salaryChartEl = useChart({
   },
   yAxis: {
     type: 'value',
-    max: 140,
-    interval: 20,
+    max: 10,
+    interval: 2,
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: { color: '#94a3b8', fontSize: 11 },
@@ -203,40 +260,54 @@ const salaryChartEl = useChart({
       colorBy: 'data',
       barWidth: '55%',
       itemStyle: { borderRadius: [2, 2, 0, 0] },
-      data: salaryChart.values,
+      data: salaryData.value,
     },
   ],
-})
+}))
 
 // 技术栈热度
-const stackChartEl = useChart({
-  grid: { top: 8, right: 8, bottom: 4, left: 0, containLabel: true },
-  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-  xAxis: {
-    type: 'value',
-    max: 100,
-    axisLine: { lineStyle: { color: '#e5e7eb' } },
-    axisTick: { show: false },
-    axisLabel: { color: '#94a3b8', fontSize: 11 },
-    splitLine: { lineStyle: { color: '#eef2f6' } },
-  },
-  yAxis: {
-    type: 'category',
-    data: stackChart.categories,
-    // 让第一个（Python）显示在最上方
-    inverse: true,
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: '#64748b', fontSize: 11 },
-  },
-  series: [
-    {
-      type: 'bar',
-      barWidth: '55%',
-      itemStyle: { color: '#4e9bf0', borderRadius: [0, 5, 5, 0] },
-      data: stackChart.values,
+const stackChartEl = useChart(() => {
+  const counts = skillTags.value.map(item => item.hotCount)
+  // 连续渐变需要上下界，取数据最大值；空数据时兜底为 1，避免 min === max
+  const maxCount = counts.length ? Math.max(...counts) : 1
+
+  return {
+    grid: { top: 8, right: 8, bottom: 4, left: 0, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    // 颜色随数值连续过渡：值越小越浅，值越大越深
+    visualMap: {
+      type: 'continuous',
+      show: false,
+      min: 0,
+      max: maxCount,
+      inRange: { color: ['#c6dcf8', '#8cc4f4', '#4e9bf0'] },
     },
-  ],
+    xAxis: {
+      type: 'value',
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#eef2f6' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: skillTags.value.map(item => item.skillName),
+      // 让第一个（Python）显示在最上方
+      inverse: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#64748b', fontSize: 11 },
+    },
+    series: [
+      {
+        type: 'bar',
+        barWidth: '55%',
+        // 颜色交给 visualMap，这里不再写死单色
+        itemStyle: { borderRadius: [0, 5, 5, 0] },
+        data: counts,
+      },
+    ],
+  }
 })
 
 // 深圳各区岗位数量
@@ -269,7 +340,7 @@ const districtPie = {
   noLegend: { radius: ['55%', '85%'], center: ['50%', '50%'] },
 }
 
-const districtChartEl = useChart({
+const districtChartEl = useChart(() => ({
   baseOption: {
     color: districtChart.colors,
     tooltip: { trigger: 'item', formatter: '{b}：{d}%' },
@@ -281,7 +352,8 @@ const districtChartEl = useChart({
         labelLine: { show: false },
         // 扇区之间留白边
         itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
-        data: districtChart.data,
+        // 饼图要求 { name, value }，这里把接口的 region / jobRatio 映射过去
+        data: jobDistrict.value.map(item => ({ name: item.region, value: item.jobRatio })),
         ...districtPie.withLegend,
       },
     ],
@@ -314,17 +386,17 @@ const districtChartEl = useChart({
       },
     },
   ],
-})
+}))
 
 // 经验与平均薪资：面积折线图
-const experienceChartEl = useChart({
+const experienceChartEl = useChart(() => ({
   grid: { top: 8, right: 12, bottom: 4, left: 0, containLabel: true },
   tooltip: { trigger: 'axis' },
   xAxis: {
     type: 'category',
     // 首尾点贴边不好看，留一点内边距
     boundaryGap: false,
-    data: experienceChart.categories,
+    data: expSalary.value.map(item => item.experience),
     axisLine: { lineStyle: { color: '#e5e7eb' } },
     axisTick: { show: false },
     axisLabel: { color: '#64748b', fontSize: 11 },
@@ -361,10 +433,12 @@ const experienceChartEl = useChart({
           ],
         },
       },
-      data: experienceChart.values,
+      data: expSalary.value.map(item => item.avgSalary),
     },
   ],
-})
+}))
+
+
 
 /** 岗位数据表格行 */
 interface JobRow {
@@ -420,35 +494,137 @@ const searchJobDetail = async (_row: JobRow, _column: unknown, event: MouseEvent
 //  查询函数
 const handleQuery = () => {
   console.log('筛选条件:', query)
+  jobPagination.page = 1
+  getJob(query)
 }
 
 // 重置筛选条件
 const handleReset = () => {
-  filterItems.forEach((item) => {
+  filterItems.value.forEach((item) => {
     query[item.prop] = ''
   })
+  jobPagination.page = 1
+  getJob(query)
 }
 
 // 页面渲染时
 onMounted(() => {
-  getJob()
+  getJob(query)
+  getSalary()
+  getSkills()
+  getJobDistrict()
+  getExpSalary()
+
+  // 获取查询时的数据列表
+  getCity().then(res => {
+    cities.value = res.map(item => {
+      return {
+        label: item.district,
+        value: item.district,
+      }
+    })
+    cities.value.unshift({
+      label: '不限城市',
+      value: '',
+    })
+    // console.log(cities.value)
+  })
+
+  // 获取技术关键词
+  getKeywords().then(res => {
+    keywords.value = res.map(item => {
+      return {
+        label: item.skill,
+        value: item.skill,
+      }
+    })
+    keywords.value.unshift({
+      label: '不限关键词',
+      value: '',
+    })
+    // console.log(keywords.value)
+  })
 })
 
 //  获取岗位数据
-const getJob = async () => {
+const getJob = async (query: JobQuery) => {
   try {
-    const res = await getJobList({ page: jobPagination.page, size: jobPagination.size })
+    const res = await getJobList({ page: jobPagination.page, size: jobPagination.size, ...query })
     jobList.value = res.list
     jobPagination.total = res.total
-    console.log(jobList.value)
+    // console.log(jobList.value)
   } catch (error) {
-    console.log(error)
+    console.log("获取岗位数据失败：", error)
   }
 }
 
+// 获取薪资分布数据
+const getSalary = async () => {
+  try {
+    const res = await getSalaryRange()
+    salaryData.value = res.reduce((acc, cur) => {
+      acc.push(cur.jobCount)
+      return acc
+    }, [] as number[])
+    // console.log(salaryData.value)
+  } catch (error) {
+    console.log("获取薪资分布数据失败：", error)
+  }
+}
+
+// 获取技术栈热度
+const getSkills = async () => {
+  try {
+    const res = await getSkillTags()
+    skillTags.value = res.map(item => {
+      return {
+        skillName: item.skill_tag,
+        hotCount: item.hot_count,
+      }
+    })
+    // console.log(skillTags.value)
+  } catch (error) {
+    console.log("获取技术栈热度失败：", error)
+  }
+}
+
+// 获取地方岗位数量数据
+const getJobDistrict = async () => {
+  try {
+    const res = await getDistrict()
+    jobDistrict.value = res.map(item => {
+      return {
+        region: item.area_name,
+        jobRatio: item.job_count,
+      }
+    })
+    // console.log(jobDistrict.value)
+  } catch (error) {
+    console.log("获取地方岗位数量数据失败：", error)
+  }
+}
+
+// 工作经验与平均薪资
+const getExpSalary = async () => {
+  try {
+    const res = await getExperienceSalary()
+    expSalary.value = res.map(item => {
+      return {
+        experience: item.experience,
+        avgSalary: item.avg_salary,
+      }
+    })
+    // console.log(expSalary.value)
+  } catch (error) {
+    console.log("获取工作经验对应平均薪资数据失败：", error)
+  }
+}
+
+
+
 // 页码或每页条数变化（换页）时重新请求
 watch(() => [jobPagination.page, jobPagination.size], () => {
-  getJob()
+  getJob(query)
 },
 )
 </script>
