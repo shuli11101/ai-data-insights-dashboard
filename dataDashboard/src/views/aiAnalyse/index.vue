@@ -19,7 +19,7 @@
         <textarea v-model="content" name="文本框" id="textarea"
           :placeholder="activeTab === '1' ? '请输入你掌握的技术栈、项目经验、求职意向' : '粘贴岗位招聘JD'"></textarea>
         <div class="main_button">
-          <el-button type="primary" :disabled="!content.trim()">
+          <el-button type="primary" :disabled="!content.trim()" @click="startAnalysis">
             <svg class="aiAnalyse-icon" width="16" height="16" viewBox="0 0 18 18" fill="none"
               xmlns="http://www.w3.org/2000/svg">
               <path
@@ -33,15 +33,23 @@
                 d="M1.5 15C1.5 15.8279 2.17213 16.5 3 16.5C3.82787 16.5 4.5 15.8279 4.5 15C4.5 14.1721 3.82787 13.5 3 13.5C2.17213 13.5 1.5 14.1721 1.5 15H1.5"
                 stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <span @click="startAnalysis" style="margin-left: 5px;">开始分析</span>
+            <span style="margin-left: 5px;">开始分析</span>
           </el-button>
+          <div class="main_error" v-if="error">{{ error }}</div>
         </div>
       </div>
     </div>
 
     <!-- main部分 分析结果 -->
-    <transition name="fade">
-      <div v-if="isAnalysis" class="main_result">
+    <transition name="fade" mode="out-in">
+      <!-- 拒绝提示 -->
+      <div v-if="refused" class="main_refuse">
+        <el-icon :size="20" color="#E6A23C">
+          <Warning />
+        </el-icon>
+        <span>{{ refuseReason }}</span>
+      </div>
+      <div v-else-if="hasResult" class="main_result">
         <div class="main_result_title">
           <div>分析结果</div>
           <div>基于 1,248 条深圳 AI 岗位样本</div>
@@ -61,14 +69,14 @@
             </div>
             <div class="main_result_item_progress">
               <div class="main_result_item_progress_rate">
-                <span style="font-size: 32px; font-weight: 600; color:#409EFF;">86</span>
+                <span style="font-size: 32px; font-weight: 600; color:#409EFF;">{{ matchScore }}</span>
                 <span style="font-size: 18px; color: #64748B;">/100</span>
               </div>
               <div class="main_result_item_progress_bar">
-                <el-progress :percentage="86" :show-text="false"></el-progress>
+                <el-progress :percentage="matchScore" :show-text="false"></el-progress>
               </div>
               <div class="main_result_item_progress_text">
-                <span style="color: #64748B;">超过 78% 的同岗位候选人</span>
+                <span style="color: #64748B;">超过 {{ abovePercent }}% 的同龄人</span>
               </div>
             </div>
           </div>
@@ -89,9 +97,10 @@
             </div>
             <div class="main_result_item_progress">
               <div class="main_result_item_progress_region">
-                <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">25k - 38k</span>
-                <span class="text" style=" padding-bottom: 8px;">深圳·AI算法工程师</span>
-                <span class="text">市场中位数 30k</span>
+                <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">{{ salaryRange
+                  }}</span>
+                <span class="text" style=" padding-bottom: 8px;">{{ targetJob }}</span>
+                <span class="text">市场中位数 {{ salaryMedian }}</span>
               </div>
             </div>
           </div>
@@ -156,63 +165,51 @@
         </div>
       </div>
     </transition>
+
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { CirclePlus, Warning } from '@element-plus/icons-vue'
+import { useAIStream } from '@/composables/useAIStream'
+import { sectionItems, sectionNumber, sectionText } from '@/utils/aiText'
 
 // 切换分析类型
 const activeTab = ref('1')
+const { sections, hasResult, loading, error, start, reset, refuseReason, refused } = useAIStream()
+
 const changeAnalysis = (tab: string) => {
+  if (tab === activeTab.value) return
   activeTab.value = tab
+  // 两个标签页的输入与结果互不通用，切换时清空
+  reset()
 }
 
 // 文本框内容
 const content = ref('')
-const isAnalysis = ref(false)
 
 // 开始分析
 const startAnalysis = () => {
-  // 判断是否为空
-  if (!content.value.trim()) {
-    return
-  }
-  isAnalysis.value = true
-
-  // 判断是类型
-  if (activeTab.value === '1') {
-    // 个人技能评估
-    console.log('个人技能评估：', content.value)
-  } else if (activeTab.value === '2') {
-    // JD岗位拆解
-    console.log('JD岗位拆解：', content.value)
-  }
+  start({
+    scene: activeTab.value === '1' ? 'skill' : 'jd',
+    input: content.value,
+  })
 }
 
-// 核心优势
-const coreAdvantages = ref([
-  'Python 工程化能力扎实',
-  'PyTorch 模型训练与微调',
-  'RAG 检索增强实战经验',
-  '跨团队需求拆解与沟通',
-])
+// 进度条与百分比不允许超过 100
+const clampPercent = (value: number) => Math.min(100, Math.max(0, value))
 
-// 待补充技能
-const skillGaps = ref([
-  'LangChain 工程化落地',
-  '向量数据库调优（Milvus）',
-  '模型量化与推理加速',
-  'A/B 实验与指标体系建设',
-])
-
-// 求职建议
-const jobAdvice = ref([
-  '优先投递大模型应用与 AI 平台方向，3-5 年经验岗位匹配度最高',
-  '简历中用指标量化模型效果，例如准确率提升比例与线上 QPS',
-  '面试前准备 1-2 个端到端项目复盘，覆盖数据、训练、部署全链路'
-])
+// 分析结果（由 AI 流式输出解析而来）
+const matchScore = computed(() => clampPercent(sectionNumber(sections.value, '匹配度评分')))
+const abovePercent = computed(() => clampPercent(sectionNumber(sections.value, '超越比例')))
+const salaryRange = computed(() => sectionText(sections.value, '薪资预估'))
+const targetJob = computed(() => sectionText(sections.value, '目标岗位'))
+const salaryMedian = computed(() => sectionText(sections.value, '市场中位数'))
+const coreAdvantages = computed(() => sectionItems(sections.value, '核心优势'))
+const skillGaps = computed(() => sectionItems(sections.value, '待补充技能'))
+const jobAdvice = computed(() => sectionItems(sections.value, '求职建议'))
 </script>
 
 <style scoped>
@@ -318,6 +315,13 @@ const jobAdvice = ref([
   margin-top: 16px;
 }
 
+/* 分析报错部分 */
+.main_error {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: #F56C6C;
+}
+
 /* 淡入淡出效果 */
 .fade-enter-active,
 .fade-leave-active {
@@ -327,7 +331,7 @@ const jobAdvice = ref([
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-  transform: translateY (10px);
+  transform: translateY(10px);
 }
 
 .main_result_title {
@@ -346,10 +350,40 @@ const jobAdvice = ref([
 }
 
 .main_result_item {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
   padding: 20px;
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 结果卡片内部滚动条 */
+.main_result_item::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.main_result_item::-webkit-scrollbar-track {
+  /* 上下留白，滑块不顶到卡片圆角 */
+  margin: 4px 0;
+  background: transparent;
+}
+
+.main_result_item::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: #cbd5e1;
+}
+
+.main_result_item::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Firefox 只认这两个标准属性 */
+.main_result_item {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 /* 最后一块独占一整行 */
@@ -436,6 +470,21 @@ const jobAdvice = ref([
   height: 28px;
   border-radius: 50%;
   background-color: #ECF5FF;
+}
+
+/* 无法分析提示：与结果卡片保持同一套视觉 */
+.main_refuse {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 20px;
+  font-size: 16px;
+  line-height: 24px;
+  color: #1F2937;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
 }
 
 /* 窄屏：单列堆叠（视口 − 240 侧栏 − 120 页面内边距 ≈ 可用宽度，两列需 ≥656px） */

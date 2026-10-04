@@ -1,10 +1,6 @@
 <template>
   <!--
-    AI 岗位洞察分析抽屉（Figma node 1-602）
-    1. append-to-body：抽屉挂到 body 下，不受父级布局影响
-    2. with-header=false：头部完全自定义（设计稿是左侧图标 + 标题 + 右侧关闭按钮）
-    3. modal=false + modal-penetrable：不遮罩、不拦截页面点击，侧栏与看板并存
-    4. lock-scroll=false：不锁定页面滚动
+    AI 岗位洞察分析抽屉
   -->
   <el-drawer @close="closeDrawer" v-model="visible" class="ai-drawer" direction="rtl" :size="440" append-to-body
     :with-header="false" :modal="true" modal-penetrable :lock-scroll="false">
@@ -35,7 +31,7 @@
           placeholder="例如：帮我分析深圳 AI 岗位的薪资趋势与热门技能" />
 
         <!-- 开始分析按钮-->
-        <el-button @click="startAnalysis" class="ai-drawer__submit" type="primary">
+        <el-button @click="startAnalysis" class="ai-drawer__submit" type="primary" :disabled="!prompt.trim || loading">
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M8.26275 2.1105C8.32905 1.75553 8.63889 1.4982 9 1.4982C9.36111 1.4982 9.67095 1.75553 9.73725 2.1105L10.5255 6.279C10.6401 6.88551 11.1145 7.35993 11.721 7.4745L15.8895 8.26275C16.2445 8.32905 16.5018 8.63889 16.5018 9C16.5018 9.36111 16.2445 9.67095 15.8895 9.73725L11.721 10.5255C11.1145 10.6401 10.6401 11.1145 10.5255 11.721L9.73725 15.8895C9.67095 16.2445 9.36111 16.5018 9 16.5018C8.63889 16.5018 8.32905 16.2445 8.26275 15.8895L7.4745 11.721C7.35993 11.1145 6.88551 10.6401 6.279 10.5255L2.1105 9.73725C1.75553 9.67095 1.4982 9.36111 1.4982 9C1.4982 8.63889 1.75553 8.32905 2.1105 8.26275L6.279 7.4745C6.88551 7.35993 7.35993 6.88551 7.4745 6.279L8.26275 2.1105"
@@ -51,9 +47,13 @@
           开始分析
         </el-button>
 
+        <!-- 报错提示 -->
+        <p v-if="error" class="ai-drawer__error">{{ error }}</p>
+
         <div class="ai-drawer__result-head">
           <h3 class="ai-drawer__result-title">分析结果</h3>
-          <span v-if="resultItems.length" class="ai-drawer__status">就绪</span>
+          <span v-if="loading" class="ai-drawer__status">分析中…</span>
+          <span v-else-if="resultItems.length" class="ai-drawer__status">就绪</span>
           <span v-else class="ai-drawer__unanalyzed">未分析</span>
         </div>
 
@@ -74,8 +74,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, Transition } from 'vue'
+import { computed, ref, Transition } from 'vue'
 import { Close } from '@element-plus/icons-vue'
+import { useAIStream } from '@/composables/useAIStream'
 
 /**
  * 抽屉显隐
@@ -86,32 +87,26 @@ const visible = defineModel<boolean>({ default: true })
 /** 分析需求输入 */
 const prompt = ref('')
 
-/** 分析结果（静态数据，待接入接口） */
-interface ResultItem {
-  title: string
-  text: string
-}
-const resultItems = ref<ResultItem[]>([])
+const { sections, loading, error, start, stop, reset } = useAIStream()
 
-//  点击开始分析按钮
+/** 分析结果：取小节正文，列表型小节合并为一行 */
+const resultItems = computed(() =>
+  sections.value.map((section) => ({
+    title: section.title,
+    text: section.text || section.items.join('、'),
+  })),
+)
+
+// 点击开始分析按钮
 const startAnalysis = () => {
-  console.log('开始分析')
-
-  // 假设开始分析操作
-  resultItems.value = [
-    { title: '市场概况', text: '深圳 AI 岗位量环比增长 23%，其中大模型/LLM 相关岗位占比最高，达 38%。' },
-    { title: '薪资趋势', text: '平均月薪 28k，中位数 24k；3-5 年经验薪资涨幅最陡（+46%）。' },
-    { title: '热门技能', text: 'Python、大模型、PyTorch、RAG、NLP 为前五需求技能。' },
-    { title: '求职建议', text: '建议重点补齐 LLM 微调与 RAG 工程化经验，3-5 年经验候选人机会最多。' },
-  ]
+  start({ scene: 'drawer', input: prompt.value })
 }
 
-// 关闭抽屉时，清空分析结果
+// 关闭抽屉：立即中止请求（省 token），等关闭动画结束再清空内容
 const closeDrawer = () => {
   visible.value = false
-  setTimeout(() => {
-    resultItems.value = []
-  }, 300)
+  stop()
+  setTimeout(reset, 300)
 }
 </script>
 
@@ -309,6 +304,14 @@ const closeDrawer = () => {
   font-size: 12px;
   line-height: 18px;
   color: #94a3b8;
+}
+
+/* 分析结果报错 */
+.ai-drawer__error {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: #f11717;
 }
 
 /* 手机端：抽屉铺满整屏（宽度由 el-drawer 行内样式给出，需 !important 覆盖） */

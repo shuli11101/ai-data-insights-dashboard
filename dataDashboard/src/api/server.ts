@@ -2,12 +2,12 @@ import { request } from '../utils/request'
 
 interface JobPosition {
   id: number
-  jobName: string
+  job_name: string
   company: string
-  minSalary: number
-  maxSalary: number
+  salary_min: number
+  salary_max: number
   experience: string
-  skillTags: string[]
+  skill_tags: string[]
 }
 
 // 获取岗位数据

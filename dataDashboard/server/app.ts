@@ -8,8 +8,9 @@ export function createApp() {
 
   app
   .use(cors())
-  .use(express.json())
-  .use('/api', apiRouter)
+  // 放宽内存限制
+  .use(express.json({ limit: '1mb' }))
+   .use('/api', apiRouter)
 
   // 错误中间件
   app.use(notFound).use(errorHandler)

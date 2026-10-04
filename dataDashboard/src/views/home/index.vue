@@ -443,12 +443,12 @@ const experienceChartEl = useChart(() => ({
 /** 岗位数据表格行 */
 interface JobRow {
   id: number
-  jobName: string
+  job_name: string
   company: string
-  minSalary: number
-  maxSalary: number
+  salary_min: number
+  salary_max: number
   experience: string
-  skillTags: string[]
+  skill_tags: string[]
 }
 
 // 岗位数据列表（静态数据，待接入接口）
@@ -462,11 +462,11 @@ const interpretVisible = ref(false)
 const searchJobData = ref<JobRow>({
   id: 0,
   company: '',
-  minSalary: 0,
-  maxSalary: 0,
-  jobName: '',
+  salary_min: 0,
+  salary_max: 0,
+  job_name: '',
   experience: '',
-  skillTags: [],
+  skill_tags: [],
 })
 // 调整窗口出现位置
 const CARD_HEIGHT = 420 // 卡片高度

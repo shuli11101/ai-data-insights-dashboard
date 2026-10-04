@@ -29,7 +29,8 @@
       <p class="ai-interpret__label">输入你的分析需求</p>
       <div class="ai-interpret__row">
         <el-input v-model="prompt" class="ai-interpret__input" placeholder="例如：分析深圳大模型岗位的薪资" />
-        <el-button class="ai-interpret__submit" type="primary">
+        <el-button class="ai-interpret__submit" type="primary" :loading="loading" @click="startAnalysis"
+          :disabled="loading || !prompt.trim()">
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M8.26275 2.1105C8.32905 1.75553 8.63889 1.4982 9 1.4982C9.36111 1.4982 9.67095 1.75553 9.73725 2.1105L10.5255 6.279C10.6401 6.88551 11.1145 7.35993 11.721 7.4745L15.8895 8.26275C16.2445 8.32905 16.5018 8.63889 16.5018 9C16.5018 9.36111 16.2445 9.67095 15.8895 9.73725L11.721 10.5255C11.1145 10.6401 10.6401 11.1145 10.5255 11.721L9.73725 15.8895C9.67095 16.2445 9.36111 16.5018 9 16.5018C8.63889 16.5018 8.32905 16.2445 8.26275 15.8895L7.4745 11.721C7.35993 11.1145 6.88551 10.6401 6.279 10.5255L2.1105 9.73725C1.75553 9.67095 1.4982 9.36111 1.4982 9C1.4982 8.63889 1.75553 8.32905 2.1105 8.26275L6.279 7.4745C6.88551 7.35993 7.35993 6.88551 7.4745 6.279L8.26275 2.1105"
@@ -55,18 +56,22 @@
             </el-icon>
             <span>结构化结果</span>
           </h3>
-          <span class="ai-interpret__status">就绪</span>
+          <span v-if="loading" class="ai-interpret__status">分析中…</span>
+          <span v-else-if="matchScore" class="ai-interpret__status">就绪</span>
+          <span v-else class="ai-interpret__status">未分析</span>
         </div>
 
         <div class="ai-interpret__result">
           <div class="ai-interpret__score">
             <span class="ai-interpret__score-label">匹配度</span>
-            <span class="ai-interpret__score-value">86</span>
+            <span class="ai-interpret__score-value">{{ matchScore || '--' }}</span>
           </div>
-          <p class="ai-interpret__line">优势：{{ searchJobData.skillTags.join('、') || '无' }}
-          </p>
-          <p class="ai-interpret__line">建议：需AI生成</p>
+          <p v-if="advantage" class="ai-interpret__line">优势：{{ advantage }}</p>
+          <p v-if="advice" class="ai-interpret__line">建议：{{ advice }}</p>
         </div>
+
+        <!-- 分析结果报错 -->
+        <p v-if="error" class="ai-interpret__error">{{ error }}</p>
       </section>
 
       <!-- 底部 -->
@@ -76,23 +81,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Close, List } from '@element-plus/icons-vue'
+import { useAIStream } from '@/composables/useAIStream'
+import { sectionNumber, sectionText } from '@/utils/aiText'
+
+interface JobRow {
+  id: number
+  job_name: string
+  company: string
+  salary_min: number
+  salary_max: number
+  experience: string
+  skill_tags: string[]
+}
 
 interface Props {
   /** 浮层距视口顶部距离（px），跟随表格行点击时由调用方计算 */
   top?: number
   /** 浮层距视口左侧距离（px） */
   left?: number
-  // 数据
-  searchJobData: {
-    id: number
-    company: string
-    minSalary: number
-    maxSalary: number
-    experience: string
-    skillTags: string[]
-  }
+  /** 当前点击的岗位数据 */
+  searchJobData: JobRow
 }
 
 // 获取数据
@@ -103,6 +113,30 @@ const visible = defineModel<boolean>({ default: true })
 
 /** 分析需求输入 */
 const prompt = ref('')
+
+const { sections, loading, error, start, stop, reset } = useAIStream()
+
+// 结构化结果
+const matchScore = computed(() => sectionNumber(sections.value, '匹配度'))
+const advantage = computed(() => sectionText(sections.value, '优势'))
+const advice = computed(() => sectionText(sections.value, '建议'))
+
+// 把岗位信息作为补充信息一起提交，否则模型不知道在解读哪个岗位
+const jobInfo = computed(
+  () =>
+    `岗位：${searchJobData.job_name}｜公司：${searchJobData.company}｜薪资：${searchJobData.salary_min}k-${searchJobData.salary_max}k｜经验要求：${searchJobData.experience}｜技能要求：${searchJobData.skill_tags.join('、')}`,
+)
+
+const startAnalysis = () => {
+  start({ scene: 'interpret', input: prompt.value, context: jobInfo.value })
+}
+
+// 点的是另一个岗位时清掉上一次结果
+watch(() => searchJobData.id, () => reset())
+// 浮层被关掉时中止请求
+watch(visible, (value) => {
+  if (!value) stop()
+})
 </script>
 
 <style scoped>
@@ -302,6 +336,14 @@ const prompt = ref('')
 
 .ai-interpret__score+.ai-interpret__line {
   margin-top: 12px;
+}
+
+/* 结果报错 */
+.ai-interpret__error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: #f11717;
 }
 
 /* 底部 */
