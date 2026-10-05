@@ -54,115 +54,198 @@
           <div>分析结果</div>
           <div>基于 1,248 条深圳 AI 岗位样本</div>
         </div>
-        <div class="main_result_content">
-          <div class="main_result_item match_rate">
-            <div class="main_result_item_content">
-              <svg color="#409EFF" width="24" height="24" viewBox="0 0 49 48" fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M7.4573 37C5.7019 33.9605 4.77783 30.5107 4.77783 27C4.77783 15.9543 13.7321 7 24.7778 7C35.8235 7 44.7778 15.9543 44.7778 27C44.7778 30.5107 43.8537 33.9605 42.0983 37"
-                  stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M24.7778 20V30" transform="rotate(30 24.7778 27)" stroke="currentColor" stroke-width="4"
-                  stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-              <span>匹配度评分</span>
+        <template v-if="activeTab === '1'">
+          <div class="main_result_content">
+            <div class="main_result_item" :class="activeTab === '1' ? 'match_rate' : 'job_basic'">
+              <template v-if="activeTab === '1'">
+                <div class="main_result_item_content">
+                  <svg color="#409EFF" width="24" height="24" viewBox="0 0 49 48" fill="none"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      d="M7.4573 37C5.7019 33.9605 4.77783 30.5107 4.77783 27C4.77783 15.9543 13.7321 7 24.7778 7C35.8235 7 44.7778 15.9543 44.7778 27C44.7778 30.5107 43.8537 33.9605 42.0983 37"
+                      stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M24.7778 20V30" transform="rotate(30 24.7778 27)" stroke="currentColor" stroke-width="4"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <span>匹配度评分</span>
+                </div>
+                <div class="main_result_item_progress">
+                  <div class="main_result_item_progress_rate">
+                    <span style="font-size: 32px; font-weight: 600; color:#409EFF;">{{ matchScore }}</span>
+                    <span style="font-size: 18px; color: #64748B;">/100</span>
+                  </div>
+                  <div class="main_result_item_progress_bar">
+                    <el-progress :percentage="matchScore" :show-text="false"></el-progress>
+                  </div>
+                  <div class="main_result_item_progress_text">
+                    <span style="color: #64748B;">超过 {{ abovePercent }}% 的同龄人</span>
+                  </div>
+                </div>
+              </template>
+
             </div>
-            <div class="main_result_item_progress">
-              <div class="main_result_item_progress_rate">
-                <span style="font-size: 32px; font-weight: 600; color:#409EFF;">{{ matchScore }}</span>
-                <span style="font-size: 18px; color: #64748B;">/100</span>
-              </div>
-              <div class="main_result_item_progress_bar">
-                <el-progress :percentage="matchScore" :show-text="false"></el-progress>
-              </div>
-              <div class="main_result_item_progress_text">
-                <span style="color: #64748B;">超过 {{ abovePercent }}% 的同龄人</span>
-              </div>
-            </div>
-          </div>
-          <div class="main_result_item salary_rate">
-            <div class="main_result_item_content">
-              <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path d="M3.982 11.9689V7A3 3 0 0 1 6.982 4H33.397A3 3 0 0 1 36.397 7V11.9889" stroke="currentColor"
-                  stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-                <path
-                  d="M4 14C4 12.8954 4.89543 12 6 12H42C43.1046 12 44 12.8954 44 14V42C44 43.1046 43.1046 44 42 44H6C4.89543 44 4 43.1046 4 42V14Z"
-                  fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-                <path d="M35.25 33H44V23H35.25C32.3505 23 30 25.2386 30 28C30 30.7614 32.3505 33 35.25 33Z" fill="none"
-                  stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-                <path d="M44 16.5V40.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-              </svg>
-              <span>薪资预估</span>
-            </div>
-            <div class="main_result_item_progress">
-              <div class="main_result_item_progress_region">
-                <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">{{ salaryRange
-                  }}</span>
-                <span class="text" style=" padding-bottom: 8px;">{{ targetJob }}</span>
-                <span class="text">市场中位数 {{ salaryMedian }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="main_result_item key_advantage">
-            <div class="main_result_item_content">
-              <svg color="#67C23A" width="24" height="24" viewBox="0 0 48 48" fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M24 44C29.5228 44 34.5228 41.7614 38.1421 38.1421C41.7614 34.5228 44 29.5228 44 24C44 18.4772 41.7614 13.4772 38.1421 9.85786C34.5228 6.23858 29.5228 4 24 4C18.4772 4 13.4772 6.23858 9.85786 9.85786C6.23858 13.4772 4 18.4772 4 24C4 29.5228 6.23858 34.5228 9.85786 38.1421C13.4772 41.7614 18.4772 44 24 44Z"
-                  fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-                <path d="M16 24L22 30L34 18" stroke="currentColor" stroke-width="4" stroke-linecap="round"
-                  stroke-linejoin="round" />
-              </svg>
-              <span>核心优势</span>
-            </div>
-            <div class="main_result_item_progress" style="gap: 18px;">
-              <div class="content" v-for="text in coreAdvantages" :key="text">
-                <svg color="#67C23A" width="16" height="16" viewBox="0 0 48 48" fill="none"
+            <div class="main_result_item salary_rate">
+              <div class="main_result_item_content">
+                <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
                   xmlns="http://www.w3.org/2000/svg">
-                  <path d="M43 11L16.875 37L5 25.1818" stroke="currentColor" stroke-width="4" stroke-linecap="round"
+                  <path d="M3.982 11.9689V7A3 3 0 0 1 6.982 4H33.397A3 3 0 0 1 36.397 7V11.9889" stroke="currentColor"
+                    stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                  <path
+                    d="M4 14C4 12.8954 4.89543 12 6 12H42C43.1046 12 44 12.8954 44 14V42C44 43.1046 43.1046 44 42 44H6C4.89543 44 4 43.1046 4 42V14Z"
+                    fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+                  <path d="M35.25 33H44V23H35.25C32.3505 23 30 25.2386 30 28C30 30.7614 32.3505 33 35.25 33Z"
+                    fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+                  <path d="M44 16.5V40.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+                </svg>
+                <span>薪资预估</span>
+              </div>
+              <div class="main_result_item_progress">
+                <div class="main_result_item_progress_region">
+                  <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">{{ salaryRange
+                    }}</span>
+                  <span class="text" style=" padding-bottom: 8px;">{{ targetJob }}</span>
+                  <span class="text">市场中位数 {{ salaryMedian }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="main_result_item key_advantage">
+              <div class="main_result_item_content">
+                <svg color="#67C23A" width="24" height="24" viewBox="0 0 48 48" fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M24 44C29.5228 44 34.5228 41.7614 38.1421 38.1421C41.7614 34.5228 44 29.5228 44 24C44 18.4772 41.7614 13.4772 38.1421 9.85786C34.5228 6.23858 29.5228 4 24 4C18.4772 4 13.4772 6.23858 9.85786 9.85786C6.23858 13.4772 4 18.4772 4 24C4 29.5228 6.23858 34.5228 9.85786 38.1421C13.4772 41.7614 18.4772 44 24 44Z"
+                    fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+                  <path d="M16 24L22 30L34 18" stroke="currentColor" stroke-width="4" stroke-linecap="round"
                     stroke-linejoin="round" />
                 </svg>
-                <span>{{ text }}</span>
+                <span>核心优势</span>
               </div>
-            </div>
-          </div>
-          <div class="main_result_item skill_gaps">
-            <div class="main_result_item_content">
-              <el-icon :size="24" color="#E6A23C">
-                <CirclePlus />
-              </el-icon>
-              <span>待补充技能</span>
-            </div>
-            <div class="main_result_item_progress" style="gap: 18px;">
-              <div class="content" v-for="text in skillGaps" :key="text">
-                <el-icon :size="18" color="#E6A23C">
-                  <Warning />
-                </el-icon>
-                <span style="color: #475569;">{{ text }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="main_result_item job_advice">
-            <div class="main_result_item_content">
-              <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="4" />
-                <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="4" />
-                <circle cx="24" cy="24" r="5" stroke="currentColor" stroke-width="4" />
-              </svg>
-              <span>求职建议</span>
-            </div>
-            <div class="main_result_item_progress" style="gap: 18px;">
-              <div class="content" v-for="(text, index) in jobAdvice" :key="text">
-                <div class="circle">
-                  {{ index + 1 }}
+              <div class="main_result_item_progress" style="gap: 18px;">
+                <div class="content" v-for="text in coreAdvantages" :key="text">
+                  <svg color="#67C23A" width="16" height="16" viewBox="0 0 48 48" fill="none"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path d="M43 11L16.875 37L5 25.1818" stroke="currentColor" stroke-width="4" stroke-linecap="round"
+                      stroke-linejoin="round" />
+                  </svg>
+                  <span>{{ text }}</span>
                 </div>
-                <span style="color: #475569;">{{ text }}</span>
+              </div>
+            </div>
+            <div class="main_result_item skill_gaps">
+              <div class="main_result_item_content">
+                <el-icon :size="24" color="#E6A23C">
+                  <CirclePlus />
+                </el-icon>
+                <span>待补充技能</span>
+              </div>
+              <div class="main_result_item_progress" style="gap: 18px;">
+                <div class="content" v-for="text in skillGaps" :key="text">
+                  <el-icon :size="18" color="#E6A23C">
+                    <Warning />
+                  </el-icon>
+                  <span style="color: #475569;">{{ text }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="main_result_item job_advice">
+              <div class="main_result_item_content">
+                <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="4" />
+                  <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="4" />
+                  <circle cx="24" cy="24" r="5" stroke="currentColor" stroke-width="4" />
+                </svg>
+                <span>求职建议</span>
+              </div>
+              <div class="main_result_item_progress" style="gap: 18px;">
+                <div class="content" v-for="(text, index) in jobAdvice" :key="text">
+                  <div class="circle">
+                    {{ index + 1 }}
+                  </div>
+                  <span style="color: #475569;">{{ text }}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </template>
+        <template v-else>
+          <div class="main_result_content jd_content">
+            <div class="main_result_item job_basic">
+              <div class="main_result_item_content">
+                <el-icon :size="24" color="#409EFF">
+                  <Document />
+                </el-icon>
+                <span>岗位基本信息</span>
+              </div>
+              <div class="main_result_item_progress">
+                <div class="basic_info" v-for="field in jdBasicInfo" :key="field.label">
+                  <span class="basic_info_label">{{ field.label }}</span>
+                  <span class="basic_info_value">{{ field.value }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="main_result_item job_basic">
+              <div class="main_result_item_content">
+                <el-icon :size="24" color="#409EFF">
+                  <Tickets />
+                </el-icon>
+                <span>岗位职责</span>
+              </div>
+              <div class="main_result_item_progress">
+                <div class="basic_info" v-for="duty in jdDuties" :key="duty.label">
+                  <span class="basic_info_label">{{ duty.label }}</span>
+                  <span class="basic_info_value">{{ duty.value }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="main_result_item job_basic">
+              <div class="main_result_item_content">
+                <el-icon :size="24" color="#409EFF">
+                  <Medal />
+                </el-icon>
+                <span>认知要求</span>
+              </div>
+              <div class="main_result_item_progress">
+                <div class="basic_info" v-for="duty in knowledgeRequirements" :key="duty.label">
+                  <span class="basic_info_label">{{ duty.label }}</span>
+                  <span class="basic_info_value knowledge_value">
+                    <span v-for="item in duty.value" :key="item" class="knowledge_item" :style="tagStyle(item)">{{ item
+                    }}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="main_result_item job_basic" v-if="jdHiddenInfo.length">
+              <div class="main_result_item_content">
+                <el-icon :size="24" color="#409EFF">
+                  <View />
+                </el-icon>
+                <span>隐藏信息</span>
+              </div>
+              <div class="main_result_item_progress">
+                <div class=" hidden_info" v-for="(item, index) in jdHiddenInfo" :key="index">
+                  <span class="hidden_info_label">{{ item.label }}</span>
+                  <span class="hidden_info_value">{{ item.value }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="main_result_item job_basic" v-if="jdInterviewPrep.length">
+              <div class="main_result_item_content">
+                <el-icon :size="24" color="#409EFF">
+                  <ChatDotRound />
+                </el-icon>
+                <span>面试准备方向</span>
+              </div>
+              <div class="main_result_item_progress">
+                <div class="hidden_info" v-for="(item, index) in jdInterviewPrep" :key="index">
+                  <span class="hidden_info_label interview_label">{{ item.label }}</span>
+                  <span class="hidden_info_value">{{ item.value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </transition>
 
@@ -172,7 +255,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { CirclePlus, Warning } from '@element-plus/icons-vue'
+import { ChatDotRound, CirclePlus, Document, Medal, Tickets, View, Warning } from '@element-plus/icons-vue'
 import { useAIStream } from '@/composables/useAIStream'
 import { sectionItems, sectionNumber, sectionText } from '@/utils/aiText'
 
@@ -210,6 +293,72 @@ const salaryMedian = computed(() => sectionText(sections.value, '市场中位数
 const coreAdvantages = computed(() => sectionItems(sections.value, '核心优势'))
 const skillGaps = computed(() => sectionItems(sections.value, '待补充技能'))
 const jobAdvice = computed(() => sectionItems(sections.value, '求职建议'))
+
+// JD 岗位基本信息：固定 4 个字段，从「岗位基本信息」小节按「字段名：值」拆出
+const JD_BASIC_FIELDS = ['职位名称', '所属部门', '工作地点', '薪资范围']
+
+const jdBasicInfo = computed(() =>
+  JD_BASIC_FIELDS.map((label) => {
+    const item = sectionItems(sections.value, '岗位基本信息').find((text) => text.startsWith(label))
+    const value = item?.slice(label.length).replace(/^[：:]\s*/, '').trim()
+    return { label, value: value || '未提及' }
+  }),
+)
+
+//  JD 岗位职责：固定4个字段
+const JD_BASIC_DUTIES_FIELDS = ['日常做什么', '核心产出', '协作对象', '优先级判断']
+
+const jdDuties = computed(() =>
+  JD_BASIC_DUTIES_FIELDS.map((label) => {
+    const item = sectionItems(sections.value, '岗位职责').find((text) => text.startsWith(label))
+    const value = item?.slice(label.length).replace(/^[：:]\s*/, '').trim()
+    return { label, value: value || '未提及' }
+  }),
+)
+
+// 认知要求：固定 2 个字段，从「认知要求」小节按「字段名：值」拆出
+const KNOWLEDGE_FIELDS = ['硬性要求', '软性要求']
+
+const knowledgeRequirements = computed(() =>
+  KNOWLEDGE_FIELDS.map((label) => {
+    const item = sectionItems(sections.value, '认知要求').find((text) => text.startsWith(label)) || ''
+    const value = item?.slice(label.length).replace(/^[：:]\s*/, '').trim().split('、') || []
+    console.log('item', item)
+    console.log('value', value)
+    return { label, value: value || '未提及' }
+  }
+  ),
+)
+
+// 「维度：内容」类小节（隐藏信息 / 面试准备方向）：按第一个冒号拆成标签与内容，维度名由 AI 决定，不写死
+const splitPairs = (title: string) =>
+  sectionItems(sections.value, title).map((text) => {
+    const match = /^(.+?)[：:]\s*(.*)$/.exec(text.trim())
+    return match ? { label: match[1]!, value: match[2]! } : { label: '', value: text }
+  })
+
+const jdHiddenInfo = computed(() => splitPairs('隐藏信息'))
+const jdInterviewPrep = computed(() => splitPairs('面试准备方向'))
+
+/** 认知要求标签的浅色底配色 */
+const TAG_COLORS: { bg: string; color: string }[] = [
+  { bg: '#EAF3FF', color: '#3D74FF' },
+  { bg: '#EAF7EE', color: '#529B67' },
+  { bg: '#FFF3E6', color: '#C77C2B' },
+  { bg: '#F3EEFF', color: '#7A5AF8' },
+  { bg: '#FFEFEF', color: '#D96A6A' },
+  { bg: '#E8F7F7', color: '#3E9E9E' },
+]
+
+// 按文字内容取色而不是随机数：流式逐字渲染时同一条内容颜色不会跳变
+const tagStyle = (text: string) => {
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) % 9973
+  }
+  const { bg, color } = TAG_COLORS[hash % TAG_COLORS.length]!
+  return { backgroundColor: bg, color }
+}
 </script>
 
 <style scoped>
@@ -407,6 +556,82 @@ const jobAdvice = computed(() => sectionItems(sections.value, '求职建议'))
   height: 163px;
 }
 
+/* JD 场景的卡片：与技能页同一套卡片视觉，高度随内容自适应 */
+.job_basic {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 163px;
+}
+
+/* JD 前两张卡（岗位基本信息 / 岗位职责）并排，其余各自独占一整行 */
+.jd_content {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.jd_content> :nth-child(n + 3) {
+  grid-column: 1 / -1;
+}
+
+.basic_info {
+  display: flex;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.basic_info_label {
+  /* 固定标签列宽，避免 4 字 / 5 字标签导致值左右错位 */
+  flex: 0 0 5em;
+  color: #64748B;
+}
+
+.basic_info_value {
+  color: #1F2937;
+}
+
+/* 认知要求：多条内容同行流式排列，放不下时自动换行 */
+.knowledge_value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.knowledge_item {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* 隐藏信息：维度与结论同行，结论过长时在自己那一列换行 */
+.hidden_info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.hidden_info_label {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: #1F2937;
+  border-left: 3px solid #4F7CFF;
+  font-weight: 600;
+  padding-left: 7px;
+}
+
+.hidden_info_value {
+  flex: 1;
+  color: #64748B;
+}
+
+/* 面试准备方向部分 */
+.interview_label {
+  border-left: 3px solid #ffbe4f;
+}
+
 .key_advantage,
 .skill_gaps {
   display: flex;
@@ -425,8 +650,9 @@ const jobAdvice = computed(() => sectionItems(sections.value, '求职建议'))
 .main_result_item_progress {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   height: 100%;
-  gap: 11px;
+  gap: 20px;
 }
 
 /* 匹配度评分部分 */
