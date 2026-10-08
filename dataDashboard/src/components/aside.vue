@@ -50,6 +50,14 @@
           <span>AI 分析</span>
         </template>
       </el-menu-item>
+      <el-menu-item class="aside__menu-item" index="/personal-info">
+        <el-icon>
+          <User />
+        </el-icon>
+        <template #title>
+          <span>个人信息</span>
+        </template>
+      </el-menu-item>
       <el-menu-item class="aside__menu-item" index="/about">
         <el-icon>
           <Document />
@@ -66,7 +74,7 @@
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { HomeFilled, Document } from '@element-plus/icons-vue'
+import { HomeFilled, Document, User } from '@element-plus/icons-vue'
 
 /** 侧边栏是否收起（收起后只留图标） */
 const props = defineProps({

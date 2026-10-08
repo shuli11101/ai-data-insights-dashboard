@@ -1,6 +1,9 @@
 <template>
   <div class="home">
 
+    <!-- 用户基础信息dial（服务端按 IP 判断：已填写过则不再展示） -->
+    <Survey v-if="showSurvey" />
+
     <!-- 图表区 -->
     <section class="charts">
       <!-- 薪资分布：柱状图 -->
@@ -91,8 +94,9 @@ import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
 
 import AiInterpretCard from '@/components/ai-interpret-card.vue'
 import ChartCard from '@/components/chart-card.vue'
+import Survey from '@/views/survey/index.vue'
 import { useChart } from '@/composables/useChart'
-import { getJobList, getSalaryRange, getSkillTags, getDistrict, getExperienceSalary, getCity, getKeywords } from '@/api/server'
+import { getJobList, getSalaryRange, getSkillTags, getDistrict, getExperienceSalary, getCity, getKeywords, getClientIp, getSurveyStatus } from '@/api/server'
 
 // 筛选项配置
 interface FilterItem {
@@ -507,8 +511,23 @@ const handleReset = () => {
   getJob(query)
 }
 
+
+
+// 是否展示问卷弹窗：由服务端按请求 IP 判断该 IP 是否已填写过问卷
+const showSurvey = ref(false)
+const checkSurveyStatus = async () => {
+  const res = await getSurveyStatus()
+  console.log('问卷状态:', res)
+  showSurvey.value = !res.filled
+}
+
+
 // 页面渲染时
 onMounted(() => {
+
+  // 按 IP 判断是否需要填写问卷
+  checkSurveyStatus()
+
   getJob(query)
   getSalary()
   getSkills()

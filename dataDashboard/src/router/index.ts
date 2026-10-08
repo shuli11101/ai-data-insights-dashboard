@@ -19,6 +19,11 @@ const router = createRouter({
           component: () => import('@/views/aiAnalyse/index.vue'),
         },
         {
+          path: '/personal-info',
+          name: 'personal-info',
+          component: () => import('@/views/personalInfo/index.vue'),
+        },
+        {
           path: '/about',
           name: 'about',
           component: () => import('@/views/about/index.vue'),
