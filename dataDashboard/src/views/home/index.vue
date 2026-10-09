@@ -33,7 +33,19 @@
       <div class="filter__grid">
         <div v-for="item in filterItems" :key="item.prop" class="filter__item">
           <span class="filter__label">{{ item.label }}</span>
-          <el-select v-model="query[item.prop]" placeholder="请选择" class="filter__select">
+          <!-- 岗位名称支持文本搜索：回车即触发查询 -->
+          <el-input v-if="item.type === 'input'" v-model="query[item.prop]" class="filter__input" placeholder="请输入岗位名称"
+            clearable :prefix-icon="Search" @keydown.enter="handleQuery" @clear="handleQuery" />
+          <!-- 区间筛选（经验年限 / 薪资）：两个数字分开填，只填一端也能查 -->
+          <div v-else-if="item.type === 'number-range'" class="filter__range">
+            <el-input v-model="query[item.prop]" class="filter__number" type="number" :min="0" :step="1"
+              placeholder="最低" />
+            <span class="filter__range-sep">~</span>
+            <el-input v-model="query[item.endProp ?? item.prop]" class="filter__number" type="number" :min="0" :step="1"
+              placeholder="最高" />
+          </div>
+          <el-select v-else v-model="query[item.prop]" class="filter__select" :filterable="item.filterable"
+            placeholder="请选择">
             <div v-for="option in item.options" :key="option.value">
               <el-option :label="option.label" :value="option.value" />
             </div>
@@ -50,7 +62,7 @@
 
     <!-- 岗位数据表格 -->
     <!-- 标题 -->
-    <section class="jobs">
+    <section :key="refreshKey" class="jobs">
       <div class="jobs__head">
         <h3 class="jobs__title">
           <el-icon class="jobs__title-icon">
@@ -58,7 +70,7 @@
           </el-icon>
           <span>岗位数据</span>
         </h3>
-        <el-button :icon="Refresh">刷新</el-button>
+        <el-button @click="handleRefresh" :icon="Refresh">刷新</el-button>
       </div>
 
       <!-- 岗位列表 - 暂时使用slice进行分页 -->
@@ -71,7 +83,12 @@
         <el-table-column align="center" prop="experience" label="经验" />
         <el-table-column label="技能标签">
           <template #default="{ row }">
-            <el-tag v-for="tag in row.skill_tags" :key="tag" class="jobs__tag">{{ tag }}</el-tag>
+            <el-tag v-if="!row.isDescription" v-for="tag in row.skill_tags" :key="tag" class="jobs__tag">
+              <div>{{ tag }}</div>
+            </el-tag>
+            <div v-else>
+              <el-button size="small" @click.stop="openJobDescription(row)">查看详情</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -85,120 +102,71 @@
 
     <!-- AI 智能解读浮层（默认显示，后续由表格行点击控制显隐与位置） -->
     <AiInterpretCard v-model="interpretVisible" :left="interpretX" :top="interpretY" :searchJobData="searchJobData" />
+
+    <!-- 岗位工作描述弹窗（仅由「查看详情」按钮触发，点 .stop 阻断行点击） -->
+    <JobDescriptionDialog v-model="descVisible" :job="descJob" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch, computed } from 'vue'
+import { onMounted, reactive, ref, watch, computed, nextTick } from 'vue'
 import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
 
 import AiInterpretCard from '@/components/ai-interpret-card.vue'
+import JobDescriptionDialog from '@/components/job-description-dialog.vue'
 import ChartCard from '@/components/chart-card.vue'
 import Survey from '@/views/survey/index.vue'
 import { useChart } from '@/composables/useChart'
-import { getJobList, getSalaryRange, getSkillTags, getDistrict, getExperienceSalary, getCity, getKeywords, getClientIp, getSurveyStatus } from '@/api/server'
+import { getJobList, getSalaryRange, getSkillTags, getDistrict, getExperienceSalary, getCity, getKeywords } from '@/api/server'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 
 // 筛选项配置
 interface FilterItem {
-  prop: 'city' | 'experience' | 'salary' | 'keyword'
+  prop: 'jobName' | 'city' | 'experienceMin' | 'salaryMin' | 'keyword'
   label: string
   defaultLabel: string,
+  /** input：文本搜索框；number-range：两个数字组成的区间；select：下拉选择 */
+  type: 'input' | 'number-range' | 'select',
+  /** 下拉是否支持输入关键词模糊筛选选项（选项较多时开启） */
+  filterable?: boolean,
+  /** number-range 专用：区间上限对应的查询字段 */
+  endProp?: 'experienceMax' | 'salaryMax',
   options: { label: string, value: string }[],
 }
 
 
 // 筛选列表
 const cities = ref<{ label: string, value: string }[]>([])
-const experiences = ref<{ label: string, value: string }[]>([
-  {
-    label: '不限经验',
-    value: '',
-  },
-  {
-    label: '应届',
-    value: '应届',
-  },
-  {
-    label: '1年以下',
-    value: '0-1',
-  },
-  {
-    label: '1-3年',
-    value: '1-3',
-  },
-  {
-    label: '3-5年',
-    value: '3-5',
-  },
-  {
-    label: '5年以上',
-    value: '5-',
-  }
-])
-const salaries = ref<{ label: string, value: string }[]>([
-  {
-    label: '不限薪资',
-    value: '',
-  },
-  {
-    label: '5K以下',
-    value: '0-5',
-  },
-  {
-    label: '5K-10K',
-    value: '5-10',
-  },
-  {
-    label: '10K-15K',
-    value: '10-15',
-  },
-  {
-    label: '15K-20K',
-    value: '15-20',
-  },
-  {
-    label: '20K-25K',
-    value: '20-25',
-  },
-  {
-    label: '25K-30K',
-    value: '25-30',
-  },
-  {
-    label: '30K-35K',
-    value: '30-35',
-  },
-  {
-    label: '35K-40K',
-    value: '35-40',
-  },
-  {
-    label: '40K以上',
-    value: '40-',
-  },
-])
 const keywords = ref<{ label: string, value: string }[]>([])
 
-/** 筛选项配置，各选项列表待接入接口后补充 */
+/** 筛选项配置，各选项列表待接入接口后补充；顺序与 .filter__grid 的列定义一一对应 */
 const filterItems = computed<FilterItem[]>(() => [
-  { prop: 'city', label: '城市', defaultLabel: '全部城市', options: cities.value },
-  { prop: 'experience', label: '工作经验', defaultLabel: '不限经验', options: experiences.value },
-  { prop: 'salary', label: '薪资区间（单位：K/月）', defaultLabel: '不限薪资', options: salaries.value },
-  { prop: 'keyword', label: '技术关键词', defaultLabel: '全部技术', options: keywords.value },
+  { prop: 'jobName', label: '岗位名称', defaultLabel: '', type: 'input', options: [] },
+  { prop: 'city', label: '城市', defaultLabel: '全部城市', type: 'select', filterable: true, options: cities.value },
+  { prop: 'experienceMin', endProp: 'experienceMax', label: '工作经验（年）', defaultLabel: '', type: 'number-range', options: [] },
+  { prop: 'salaryMin', endProp: 'salaryMax', label: '薪资区间（单位：K/月）', defaultLabel: '', type: 'number-range', options: [] },
+  { prop: 'keyword', label: '技术关键词', defaultLabel: '全部技术', type: 'select', filterable: true, options: keywords.value },
 ])
 
 // 查询数据
 interface JobQuery {
+  jobName: string
   city: string
-  experience: string
-  salary: string
+  /** 经验年限区间、薪资区间：两端分开填，空字符串表示不限 */
+  experienceMin: string
+  experienceMax: string
+  salaryMin: string
+  salaryMax: string
   keyword: string
 }
 
 const query = reactive<JobQuery>({
+  jobName: '',
   city: '',
-  experience: '',
-  salary: '',
+  experienceMin: '',
+  experienceMax: '',
+  salaryMin: '',
+  salaryMax: '',
   keyword: '',
 })
 
@@ -224,8 +192,8 @@ const stackChart = {
 // 各地方岗位数量：环形图
 const jobDistrict = ref<{ region: string, jobRatio: number }[]>([])
 const districtChart = {
-  title: '地方岗位数量',
-  subtitle: '各行政区招聘岗位占比',
+  title: '城市岗位数量',
+  subtitle: '各城市招聘岗位占比',
   colors: ['#4e9bf0', '#4c6fe0', '#8cc4f4', '#17bca8', '#f5a623', '#bfd9f5', '#c6cbd2'],
 }
 
@@ -251,8 +219,8 @@ const salaryChartEl = useChart(() => ({
   },
   yAxis: {
     type: 'value',
-    max: 10,
-    interval: 2,
+    max: 10000,
+    interval: 2000,
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: { color: '#94a3b8', fontSize: 11 },
@@ -271,17 +239,18 @@ const salaryChartEl = useChart(() => ({
 
 // 技术栈热度
 const stackChartEl = useChart(() => {
-  const counts = skillTags.value.map(item => item.hotCount)
+  const counts = skillTags.value.map(item => item.hotCount || 0).map(Number)
   // 连续渐变需要上下界，取数据最大值；空数据时兜底为 1，避免 min === max
   const maxCount = counts.length ? Math.max(...counts) : 1
 
   return {
-    grid: { top: 8, right: 8, bottom: 4, left: 0, containLabel: true },
+    grid: { top: 8, right: 18, bottom: 4, left: 0, containLabel: true },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     // 颜色随数值连续过渡：值越小越浅，值越大越深
     visualMap: {
       type: 'continuous',
       show: false,
+      dimension: 0,
       min: 0,
       max: maxCount,
       inRange: { color: ['#c6dcf8', '#8cc4f4', '#4e9bf0'] },
@@ -300,7 +269,14 @@ const stackChartEl = useChart(() => {
       inverse: true,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#64748b', fontSize: 11 },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 11,
+        // 锁死标签区宽度，避免最长标签把绘图区挤到右边；完整名称见 tooltip
+        width: 34,
+        overflow: 'truncate',
+        lineHeight: 14,
+      },
     },
     series: [
       {
@@ -314,7 +290,7 @@ const stackChartEl = useChart(() => {
   }
 })
 
-// 深圳各区岗位数量
+// 各地方岗位数量
 // 图例的三档配置：容器够宽 / 变窄缩小 / 极窄不渲染
 const districtLegend = {
   wide: {
@@ -394,21 +370,45 @@ const districtChartEl = useChart(() => ({
 
 // 经验与平均薪资：面积折线图
 const experienceChartEl = useChart(() => ({
-  grid: { top: 8, right: 12, bottom: 4, left: 0, containLabel: true },
-  tooltip: { trigger: 'axis' },
+  // left/right 是给首尾 x 轴标签留的位置：标签以数据点为中心，贴边时首尾各会溢出半个字宽
+  grid: { top: 8, right: 24, bottom: 4, left: 14, containLabel: true },
+  tooltip: {
+    trigger: 'axis',
+    // 白底卡片，与页面其它浮层统一
+    backgroundColor: '#ffffff',
+    borderColor: '#e5e7eb',
+    borderWidth: 1,
+    padding: [8, 12],
+    textStyle: { color: '#1f2937', fontSize: 12 },
+    extraCssText: 'border-radius:8px;box-shadow:0 6px 20px rgba(15,23,42,0.12);',
+    // 平均薪资补上单位 k（与副标题「平均月薪（k）」一致）
+    formatter: (params) => {
+      const item = Array.isArray(params) ? params[0] : params
+      return (
+        `<div style="font-weight:600;">${item?.name}</div>` +
+        `<div style="margin-top:2px;color:#64748b;">${item?.seriesName}：` +
+        `<span style="color:#4e9bf0;font-weight:600;">${item?.value}k</span></div>`
+      )
+    },
+  },
   xAxis: {
     type: 'category',
-    // 首尾点贴边不好看，留一点内边距
+    // 贴边（首尾点落在绘图区两端）
     boundaryGap: false,
     data: expSalary.value.map(item => item.experience),
     axisLine: { lineStyle: { color: '#e5e7eb' } },
     axisTick: { show: false },
-    axisLabel: { color: '#64748b', fontSize: 11 },
+    axisLabel: {
+      color: '#64748b',
+      fontSize: 11,
+      // 只有 4 个档位，强制全部展示（默认值可能因重叠自动隐藏）
+      interval: 0,
+    },
   },
   yAxis: {
     type: 'value',
-    min: 10,
-    max: 55,
+    min: 0,
+    max: 25,
     interval: 5,
     axisLine: { show: false },
     axisTick: { show: false },
@@ -417,6 +417,7 @@ const experienceChartEl = useChart(() => ({
   },
   series: [
     {
+      name: '平均薪资',
       type: 'line',
       color: '#4e9bf0',
       symbol: 'circle',
@@ -455,11 +456,23 @@ interface JobRow {
   skill_tags: string[]
 }
 
+interface JobPositions extends JobRow {
+  isDescription: boolean
+}
+
 // 岗位数据列表（静态数据，待接入接口）
-const jobList = ref<JobRow[]>([])
+const jobList = ref<JobPositions[]>([])
 
 // 分页状态（总数为静态值，待接入接口后由返回结果驱动）
-const jobPagination = reactive({ page: 1, size: 5, total: 0 })
+const jobPagination = reactive({ page: 1, size: 10, total: 0 })
+
+// 工作描述弹窗：只由「查看详情」按钮触发，点行仍是 AI 智能解读浮层
+const descVisible = ref(false)
+const descJob = ref<JobPositions | null>(null)
+const openJobDescription = (row: JobPositions) => {
+  descJob.value = row
+  descVisible.value = true
+}
 
 // AI 智能解读浮层
 const interpretVisible = ref(false)
@@ -506,19 +519,28 @@ const handleQuery = () => {
 const handleReset = () => {
   filterItems.value.forEach((item) => {
     query[item.prop] = ''
+    // 区间类筛选项还有上限字段，一并清空
+    if (item.endProp) query[item.endProp] = ''
   })
   jobPagination.page = 1
   getJob(query)
 }
 
+// 刷新图表
+const refreshKey = ref(0)
+const handleRefresh = async () => {
+  refreshKey.value++
+  await nextTick()
+}
 
 
-// 是否展示问卷弹窗：由服务端按请求 IP 判断该 IP 是否已填写过问卷
+
+// 是否展示问卷弹窗：与个人信息页共用同一个 store，按 IP 判断是否填写过
+const personalInfoStore = usePersonalInfoStore()
 const showSurvey = ref(false)
 const checkSurveyStatus = async () => {
-  const res = await getSurveyStatus()
-  console.log('问卷状态:', res)
-  showSurvey.value = !res.filled
+  const res = await personalInfoStore.fetchPersonal()
+  showSurvey.value = !res
 }
 
 
@@ -538,8 +560,8 @@ onMounted(() => {
   getCity().then(res => {
     cities.value = res.map(item => {
       return {
-        label: item.district,
-        value: item.district,
+        label: item.city,
+        value: item.city,
       }
     })
     cities.value.unshift({
@@ -569,7 +591,24 @@ onMounted(() => {
 const getJob = async (query: JobQuery) => {
   try {
     const res = await getJobList({ page: jobPagination.page, size: jobPagination.size, ...query })
-    jobList.value = res.list
+    jobList.value = res.list.map(item => ({
+      ...item,
+      // 经验为空时统一显示为「无需经验」
+      experience: item.experience || '无需经验',
+      isDescription: false,
+    }))
+    // 处理岗位数据，将岗位描述和技能区分
+    jobList.value.forEach(item => {
+      item.skill_tags.forEach(tag => {
+        if (tag.length >= 10) {
+          item.isDescription = true
+          return
+        }
+      })
+      if (!item.isDescription) {
+        item.isDescription = false
+      }
+    })
     jobPagination.total = res.total
     // console.log(jobList.value)
   } catch (error) {
@@ -652,12 +691,12 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
 .home {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   padding: 20px;
 }
 
 .filter {
-  padding: 20px;
+  padding: 10px 20px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -666,10 +705,12 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
     0 1px 2px 0 rgba(15, 23, 42, 0.04);
 }
 
-/* 基准（≥1200px）：6 列，4 个筛选项各占 1 列，按钮组占 2 列 */
+/* 基准（≥1200px）：列顺序与 filterItems 一致（岗位名称/城市/工作经验/薪资/技术关键词 + 按钮组），
+   工作经验列给 1.3fr，比其它筛选项略宽 */
 .filter__grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.9fr);
   gap: 16px;
   align-items: end;
 }
@@ -701,8 +742,62 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
   font-size: 14px;
 }
 
+/* 岗位名称搜索框：与下拉保持同一高度与配色 */
+.filter__input {
+  --el-border-color: #e5e7eb;
+  --el-input-text-color: #1f2937;
+  --el-input-placeholder-color: #a8abb2;
+}
+
+.filter__input :deep(.el-input__wrapper) {
+  min-height: 36px;
+  padding: 0 11px 0 12px;
+  font-size: 14px;
+}
+
+/* 区间筛选项（经验年限 / 薪资）：两个等宽数字输入框 + 中间连接符，与下拉保持同一高度 */
+.filter__range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filter__range-sep {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 36px;
+  color: #94a3b8;
+}
+
+.filter__number {
+  flex: 1;
+  min-width: 0;
+
+  --el-border-color: #e5e7eb;
+  --el-input-text-color: #1f2937;
+  --el-input-placeholder-color: #a8abb2;
+}
+
+.filter__number :deep(.el-input__wrapper) {
+  min-height: 36px;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+/* 数字输入框的原生上下箭头在窄输入框里很挤，隐藏掉 */
+.filter__number :deep(.el-input__inner) {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.filter__number :deep(.el-input__inner::-webkit-outer-spin-button),
+.filter__number :deep(.el-input__inner::-webkit-inner-spin-button) {
+  appearance: none;
+  margin: 0;
+}
+
 .filter__actions {
-  grid-column: span 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -717,7 +812,7 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
 .filter__actions :deep(.el-button) {
   height: 36px;
   padding: 0 16px;
-  width: 200px;
+  width: 120px;
 }
 
 /* el-button 相邻按钮自带 12px margin，避免与容器 gap 叠加 */
@@ -742,7 +837,7 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
   gap: 20px;
 }
 
-/* ECharts 容器撑满卡片图表区（288px），init 依赖确定尺寸 */
+/* ECharts 容器撑满卡片图表区（占卡片剩余高度），init 依赖确定尺寸 */
 .charts__canvas {
   width: 100%;
   height: 100%;
@@ -750,7 +845,7 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
 
 /* 岗位数据表格 */
 .jobs {
-  padding: 20px;
+  padding: 10px 20px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -764,7 +859,7 @@ watch(() => [jobPagination.page, jobPagination.size], () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 16px;
+  padding-bottom: 4px;
 }
 
 .jobs__title {

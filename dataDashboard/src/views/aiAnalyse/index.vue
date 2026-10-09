@@ -16,10 +16,10 @@
           <span v-if="activeTab === '1'">技能与求职信息</span>
           <span v-else>岗位 JD</span>
         </div>
-        <textarea v-model="content" name="文本框" id="textarea"
+        <textarea v-model="content" @keydown.enter.prevent="startAnalysis" spellcheck="false" name="文本框" id="textarea"
           :placeholder="activeTab === '1' ? '请输入你掌握的技术栈、项目经验、求职意向' : '粘贴岗位招聘JD'"></textarea>
         <div class="main_button">
-          <el-button type="primary" :disabled="!content.trim()" @click="startAnalysis">
+          <el-button type="primary" :disabled="!content.trim() || loading" @click="startAnalysis">
             <svg class="aiAnalyse-icon" width="16" height="16" viewBox="0 0 18 18" fill="none"
               xmlns="http://www.w3.org/2000/svg">
               <path
@@ -102,7 +102,7 @@
               <div class="main_result_item_progress">
                 <div class="main_result_item_progress_region">
                   <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">{{ salaryRange
-                    }}</span>
+                  }}</span>
                   <span class="text" style=" padding-bottom: 8px;">{{ targetJob }}</span>
                   <span class="text">市场中位数 {{ salaryMedian }}</span>
                 </div>
@@ -211,7 +211,7 @@
                   <span class="basic_info_label">{{ duty.label }}</span>
                   <span class="basic_info_value knowledge_value">
                     <span v-for="item in duty.value" :key="item" class="knowledge_item" :style="tagStyle(item)">{{ item
-                    }}</span>
+                      }}</span>
                   </span>
                 </div>
               </div>

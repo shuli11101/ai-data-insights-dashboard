@@ -45,6 +45,7 @@ const collapsed = ref(false)
 }
 
 .layout__header {
+  max-height: 60px;
   flex-shrink: 0;
 }
 

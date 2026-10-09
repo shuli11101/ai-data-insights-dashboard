@@ -23,6 +23,9 @@ defineProps<{
 
 <style scoped>
 .chart-card {
+  display: flex;
+  flex-direction: column;
+  height: 300px;
   --el-card-border-color: #e5e7eb;
   --el-card-border-radius: 8px;
 
@@ -31,8 +34,17 @@ defineProps<{
     0 1px 2px 0 rgba(15, 23, 42, 0.04);
 }
 
+/* 让 el-card 的内容区跟着卡片高度撑满，图表区才能用 flex 占剩余高度 */
+.chart-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .chart-card__header {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 2px;
   padding-bottom: 12px;
@@ -56,8 +68,9 @@ defineProps<{
   color: #64748b;
 }
 
-/* 图表区高度固定，ECharts 初始化依赖确定高度 */
+/* 图表区占满卡片剩余高度，ECharts 初始化依赖确定高度 */
 .chart-card__body {
-  height: 288px;
+  flex: 1;
+  min-height: 0;
 }
 </style>

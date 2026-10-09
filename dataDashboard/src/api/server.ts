@@ -10,7 +10,7 @@ interface JobPosition {
   skill_tags: string[]
 }
 
-interface PersonalInfo {
+export interface PersonalInfo {
   education: string
   experience: string
   skills: string[]
@@ -20,7 +20,7 @@ interface PersonalInfo {
 }
 
 // 获取岗位数据
-export const getJobList = (params: { page: number; size: number, city: string, experience: string, salary: string, keyword: string }): Promise<{ list: JobPosition[], total: number }> => {
+export const getJobList = (params: { page: number; size: number, city: string, experienceMin: string, experienceMax: string, salaryMin: string, salaryMax: string, keyword: string, jobName: string }): Promise<{ list: JobPosition[], total: number }> => {
   return request<{ list: JobPosition[], total: number }>('/home/jobList', { params })
 }
 
@@ -45,8 +45,8 @@ export const getExperienceSalary = (): Promise<{ experience: string; avg_salary:
 }
 
 // 获取城市数据
-export const getCity = (): Promise<{ district: string }[]> => {
-  return request<{ district: string }[]>('/home/city')
+export const getCity = (): Promise<{ city: string }[]> => {
+  return request<{ city: string }[]>('/home/city')
 }
 
 // 获取技术关键词
@@ -63,7 +63,7 @@ export const getSurveyStatus = (): Promise<{ filled: boolean }> => {
   return request<{ filled: boolean }>('/surveyStatus')
 }
 // 将用户基础信息存入数据库（ip 由服务端从请求中获取，无需前端传）
-export const setPersonalInfo = (body: { ip?: string, education: string, experience: string, skills: string[], city: string, currentSalary: number | undefined, expectedSalary: number | undefined }): Promise<{ id: string }> => {
+export const setPersonalInfo = (body: PersonalInfo): Promise<{ id: string }> => {
   return request<{ id: string }>('/setPersonalInfo', { method: 'post', data: body })
 }
 // 获取当前 IP 已提交的个人信息，用于表单回显（未提交过返回 null）

@@ -27,8 +27,8 @@
       <!-- 内容区（高度不够时内部滚动） -->
       <div class="ai-drawer__content">
         <p class="ai-drawer__label">输入你的分析需求</p>
-        <el-input v-model="prompt" class="ai-drawer__input" type="textarea" :rows="6" resize="none"
-          placeholder="例如：帮我分析深圳 AI 岗位的薪资趋势与热门技能" />
+        <el-input v-model="prompt" @keydown.enter.prevent="startAnalysis" class="ai-drawer__input" type="textarea"
+          :rows="6" resize="none" placeholder="例如：帮我分析深圳 AI 岗位的薪资趋势与热门技能" />
 
         <!-- 开始分析按钮-->
         <el-button @click="startAnalysis" class="ai-drawer__submit" type="primary" :disabled="!prompt.trim || loading">
@@ -77,6 +77,7 @@
 import { computed, ref, Transition } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import { useAIStream } from '@/composables/useAIStream'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 
 /**
  * 抽屉显隐
@@ -89,6 +90,9 @@ const prompt = ref('')
 
 const { sections, loading, error, start, stop, reset } = useAIStream()
 
+// 用户个人信息（服务端按请求 IP 返回，store 内已做缓存）
+const personalInfoStore = usePersonalInfoStore()
+
 /** 分析结果：取小节正文，列表型小节合并为一行 */
 const resultItems = computed(() =>
   sections.value.map((section) => ({
@@ -97,9 +101,10 @@ const resultItems = computed(() =>
   })),
 )
 
-// 点击开始分析按钮
-const startAnalysis = () => {
-  start({ scene: 'drawer', input: prompt.value })
+// 点击开始分析按钮：先确保拿到用户个人信息，再作为上下文一起交给 AI
+const startAnalysis = async () => {
+  await personalInfoStore.fetchPersonal()
+  start({ scene: 'drawer', input: prompt.value, context: personalInfoStore.context || undefined })
 }
 
 // 关闭抽屉：立即中止请求（省 token），等关闭动画结束再清空内容

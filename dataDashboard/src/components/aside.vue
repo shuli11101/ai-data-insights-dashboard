@@ -7,23 +7,14 @@
     <!-- logo部分 -->
     <div class="aside__brand">
       <div class="aside__logo">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M8.26275 2.1105C8.32905 1.75553 8.63889 1.4982 9 1.4982C9.36111 1.4982 9.67095 1.75553 9.73725 2.1105L10.5255 6.279C10.6401 6.88551 11.1145 7.35993 11.721 7.4745L15.8895 8.26275C16.2445 8.32905 16.5018 8.63889 16.5018 9C16.5018 9.36111 16.2445 9.67095 15.8895 9.73725L11.721 10.5255C11.1145 10.6401 10.6401 11.1145 10.5255 11.721L9.73725 15.8895C9.67095 16.2445 9.36111 16.5018 9 16.5018C8.63889 16.5018 8.32905 16.2445 8.26275 15.8895L7.4745 11.721C7.35993 11.1145 6.88551 10.6401 6.279 10.5255L2.1105 9.73725C1.75553 9.67095 1.4982 9.36111 1.4982 9C1.4982 8.63889 1.75553 8.32905 2.1105 8.26275L6.279 7.4745C6.88551 7.35993 7.35993 6.88551 7.4745 6.279L8.26275 2.1105"
-            stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M15 1.5V4.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M16.5 3H13.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          <path
-            d="M1.5 15C1.5 15.8279 2.17213 16.5 3 16.5C3.82787 16.5 4.5 15.8279 4.5 15C4.5 14.1721 3.82787 13.5 3 13.5C2.17213 13.5 1.5 14.1721 1.5 15H1.5"
-            stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <img src="../assets/images/logo.png" alt="JobVision" class="aside__logo-image" />
       </div>
-      <h1 class="aside__title">AI招聘数据洞察看板</h1>
+      <h1 class="aside__title">JobVision</h1>
     </div>
 
     <!-- 导航菜单：暂只放「首页」一项 -->
-    <el-menu class="aside__menu" :collapse="props.collapsed" :collapse-transition="false" :default-active="route.path"
-      router>
+    <el-menu class="aside__menu" :popper-effect="'light'" :collapse="props.collapsed" :collapse-transition="false"
+      :default-active="route.path" router>
       <el-menu-item class="aside__menu-item" index="/">
         <el-icon>
           <HomeFilled />
@@ -98,7 +89,7 @@ const route = useRoute()
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  width: 240px;
+  width: 200px;
   height: 100%;
   background: #ffffff;
   border-right: 1px solid #e5e7eb;
@@ -138,17 +129,32 @@ const route = useRoute()
   background: #409eff;
 }
 
-/* 标题 */
+/* logo 图片：填满 34×34 的容器，保持比例，圆角与容器一致 */
+.aside__logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border: none;
+}
+
+/* 标题：品牌渐变字，配合 logo 的蓝色方块 */
 .aside__title {
   min-width: 0;
   margin: 0;
   overflow: hidden;
   font-family: 'WenQuanYi Zen Hei', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   line-height: 22px;
-  color: #1f2937;
+  letter-spacing: 0.5px;
   white-space: nowrap;
+  /* 兜底色，background-clip: text 不被支持时仍可见 */
+  color: #409eff;
+  background: linear-gradient(120deg, #1e3a8a 0%, #409eff 55%, #4c6fe0 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* 导航 */

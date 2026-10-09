@@ -11,27 +11,49 @@ homeRouter.get('/jobList', async (req, res) => {
     return typeof text === 'string' && text !== '' ? text : null
   }
 
+  // 经验区间、薪资区间传的是数字的字符串形式，空值归一到 null
+  const toNumber = (value: any): number | null => {
+    const text = toFilter(value)
+    if (text === null) return null
+    const num = Number(text)
+    return Number.isFinite(num) ? num : null
+  }
+
   const city = toFilter(req.query.city)
-  const experience = toFilter(req.query.experience)
+  const experienceMin = toNumber(req.query.experienceMin)
+  const experienceMax = toNumber(req.query.experienceMax)
+  const salaryMin = toNumber(req.query.salaryMin)
+  const salaryMax = toNumber(req.query.salaryMax)
   const keyword = toFilter(req.query.keyword)
-  const salaryFilter = toFilter(req.query.salary)
-  // 薪资形如 "10-15"，也可能是开区间 "0-5" / "40-"；
-  // split 出来的空段必须归一到 null，否则 '' IS NULL 不成立，条件会退化成 salary_max <= ''
-  const [salaryMinText, salaryMaxText] = salaryFilter?.split('-') ?? []
-  const salary_min = salaryMinText || null
-  const salary_max = salaryMaxText || null
-  console.log(experience)
+  const jobName = toFilter(req.query.jobName)
   const page = Math.max(Number(req.query.page) || 1, 1)
   const size = Math.min(100, Math.max(1, Number(req.query.size) || 10))
 
   const [[countRows], [rows]] = await Promise.all([
     pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM job_positions
-    WHERE (? IS NULL OR experience LIKE CONCAT('%' , ? , '%'))
-    AND (? IS NULL OR district = ?)
-    AND (? IS NULL OR salary_min >= ?)
-    AND (? IS NULL OR salary_max <= ?)
+    WHERE (? IS NULL OR job_name LIKE CONCAT('%' , ? , '%'))
+    AND (
+      -- 经验区间：两端都没填时放行
+      (? IS NULL AND ? IS NULL)
+      OR (
+        -- 库里的经验是文本（"3-4年经验" / "10年以上经验"），先折算出年份区间再与所选区间求交集
+        IFNULL(CAST(REGEXP_SUBSTR(experience, '[0-9]+') AS UNSIGNED), 0) <= IFNULL(?, 999)
+        AND (CASE
+              WHEN experience LIKE '%以上%' THEN 999
+              ELSE IFNULL(CAST(REGEXP_SUBSTR(experience, '[0-9]+', 1, 2) AS UNSIGNED),
+                          IFNULL(CAST(REGEXP_SUBSTR(experience, '[0-9]+') AS UNSIGNED), 0))
+            END) >= IFNULL(?, 0)
+      )
+    )
+    AND (? IS NULL OR city = ?)
+    AND (
+      -- 薪资区间：两端都没填时放行，否则与岗位薪资范围有交集即命中
+      (? IS NULL AND ? IS NULL)
+      OR (salary_min <= IFNULL(?, 9999) AND salary_max >= IFNULL(?, 0))
+    )
     AND (? IS NULL OR JSON_CONTAINS(skill_tags, JSON_QUOTE(?)))`,
-      [experience, experience, city, city, salary_min, salary_min, salary_max, salary_max, keyword, keyword],
+      [jobName, jobName, experienceMin, experienceMax, experienceMax, experienceMin,
+        city, city, salaryMin, salaryMax, salaryMax, salaryMin, keyword, keyword],
 ),
     pool.query<RowDataPacket[]>
     (`SELECT
@@ -43,13 +65,30 @@ homeRouter.get('/jobList', async (req, res) => {
       experience,
       skill_tags
   FROM job_positions
-  WHERE (? IS NULL OR experience LIKE CONCAT('%' , ? , '%'))
-    AND (? IS NULL OR district = ?)
-    AND (? IS NULL OR salary_min >= ?)
-    AND (? IS NULL OR salary_max <= ?)
+  WHERE (? IS NULL OR job_name LIKE CONCAT('%' , ? , '%'))
+    AND (
+      -- 经验区间：两端都没填时放行
+      (? IS NULL AND ? IS NULL)
+      OR (
+        -- 库里的经验是文本（"3-4年经验" / "10年以上经验"），先折算出年份区间再与所选区间求交集
+        IFNULL(CAST(REGEXP_SUBSTR(experience, '[0-9]+') AS UNSIGNED), 0) <= IFNULL(?, 999)
+        AND (CASE
+              WHEN experience LIKE '%以上%' THEN 999
+              ELSE IFNULL(CAST(REGEXP_SUBSTR(experience, '[0-9]+', 1, 2) AS UNSIGNED),
+                          IFNULL(CAST(REGEXP_SUBSTR(experience, '[0-9]+') AS UNSIGNED), 0))
+            END) >= IFNULL(?, 0)
+      )
+    )
+    AND (? IS NULL OR city = ?)
+    AND (
+      -- 薪资区间：两端都没填时放行，否则与岗位薪资范围有交集即命中
+      (? IS NULL AND ? IS NULL)
+      OR (salary_min <= IFNULL(?, 9999) AND salary_max >= IFNULL(?, 0))
+    )
     AND (? IS NULL OR JSON_CONTAINS(skill_tags, JSON_QUOTE(?)))
   ORDER BY id DESC limit ?, ?;`,
-      [experience, experience, city, city, salary_min, salary_min, salary_max, salary_max, keyword, keyword, (page - 1) * size, size],
+      [jobName, jobName, experienceMin, experienceMax, experienceMax, experienceMin,
+        city, city, salaryMin, salaryMax, salaryMax, salaryMin, keyword, keyword, (page - 1) * size, size],
     ),
   ])
 
@@ -110,6 +149,7 @@ homeRouter.get('/skillTags', async (req, res) => {
       COUNT(*) AS hot_count
       FROM job_positions,
           JSON_TABLE(skill_tags, '$[*]' COLUMNS (skill VARCHAR(50) PATH '$')) AS skill_list
+      WHERE skill IS NOT NULL AND skill <> ''
       GROUP BY skill_tag
       ORDER BY hot_count DESC
       LIMIT 10;`)
@@ -121,14 +161,25 @@ homeRouter.get('/skillTags', async (req, res) => {
   })
 })
 
-// 各地方岗位数量
+// 各城市岗位数量：按 city 聚合，只保留岗位数前 8 的城市，其余合并为「其他」
+// （原按 district 聚合，空值 6370 条、粒度过细，且全量下发会有几百个扇区）
+// 「异地招聘」不是真实城市，直接从统计口径中剔除
 homeRouter.get('/district', async (req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(`SELECT
-    district AS area_name,
-    COUNT(*) AS job_count
-    FROM job_positions
-    GROUP BY district
-    ORDER BY job_count DESC;
+    t.area_name,
+    -- SUM 返回 DECIMAL，会被 mysql2 序列化成字符串，这里转回数字
+    CAST(SUM(t.job_count) AS UNSIGNED) AS job_count
+    FROM (
+      SELECT IF(r.rn <= 8, r.city, '其他') AS area_name, r.n AS job_count
+      FROM (
+        SELECT city, COUNT(*) AS n, ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rn
+        FROM job_positions
+        WHERE city IS NOT NULL AND city <> '' AND city <> '异地招聘'
+        GROUP BY city
+      ) r
+    ) t
+    GROUP BY t.area_name
+    ORDER BY (t.area_name = '其他'), job_count DESC;
     `)
   res.json({
     code: 0,
@@ -138,14 +189,27 @@ homeRouter.get('/district', async (req, res) => {
 })
 
 // 工作经验对应平均薪资
+// 库里的经验是细粒度值（1年经验 / 3-4年经验 …），先用 CASE 归并成 4 档，
+// 再按档位排序（FIELD 必须与归并后的档位名完全一致，否则全部返回 0，x 轴顺序会乱）
 homeRouter.get('/experienceSalary', async (req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(`SELECT
-    experience,
-    ROUND(AVG((salary_min + salary_max) / 2), 0) AS avg_salary
-    FROM job_positions
-    GROUP BY experience
-    ORDER BY
-    FIELD(experience, '应届','1-3年','3-5年','5-10年','10年+');
+    t.exp_group AS experience,
+
+    CAST(ROUND(AVG(t.mid_salary), 0) AS UNSIGNED) AS avg_salary
+    FROM (
+      SELECT
+        CASE
+          WHEN experience IN ('无需经验', '在校生/应届生') THEN '无需经验'
+          WHEN experience IN ('1年经验', '2年经验') THEN '1-3年'
+          WHEN experience = '3-4年经验' THEN '3-5年'
+          ELSE '≥5年'
+        END AS exp_group,
+        (salary_min + salary_max) / 2 AS mid_salary
+      FROM job_positions
+      WHERE experience IS NOT NULL AND experience <> ''
+    ) t
+    GROUP BY t.exp_group
+    ORDER BY FIELD(t.exp_group, '无需经验','1-3年','3-5年','≥5年');
     `)
   res.json({
     code: 0,
@@ -154,9 +218,11 @@ homeRouter.get('/experienceSalary', async (req, res) => {
   })
 })
 
-// 获取城市数据
+// 获取城市数据（下拉筛选项，与 jobList 的 city 条件同口径）
 homeRouter.get('/city', async (req, res) => {
-  const [rows] = await pool.query<RowDataPacket[]>(`select distinct district from job_positions;`)
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT DISTINCT city FROM job_positions WHERE city IS NOT NULL AND city <> '' ORDER BY city;`,
+  )
   res.json({
     code: 0,
     message: 'success',
@@ -164,14 +230,19 @@ homeRouter.get('/city', async (req, res) => {
   })
 })
 
-// 获取技术关键词
+// 获取技术关键词：只取出现频次最高的前 N 个
+// 全量下发过 12 万条，前端会把它们全渲染成下拉项，直接卡死页面
 homeRouter.get('/keywords', async (req, res) => {
-  const [rows] = await pool.query<RowDataPacket[]>(`SELECT DISTINCT s.skill
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT s.skill
     FROM job_positions j,
      JSON_TABLE(
              j.skill_tags,
              '$[*]' COLUMNS (skill VARCHAR(50) PATH '$')
-     ) AS s;`)
+     ) AS s
+    WHERE s.skill IS NOT NULL AND s.skill <> ''
+    GROUP BY s.skill
+    ORDER BY COUNT(*) DESC
+    LIMIT 100;`)
   res.json({
     code: 0,
     message: 'success',

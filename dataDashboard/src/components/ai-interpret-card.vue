@@ -4,7 +4,8 @@
     固定定位的浮动卡片：position: fixed + top/left，便于后续跟随表格行点击的位置
   -->
   <transition name="ai-interpret-fade">
-    <div v-show="visible" class="ai-interpret" :style="{ top: `${top}px`, left: `${left}px` }">
+    <div v-show="visible" ref="rootRef" class="ai-interpret"
+      :style="{ top: `${top}px`, left: `${left}px`, maxHeight: `calc(100vh - ${top + 12}px)` }">
       <!-- 头部 -->
       <header class="ai-interpret__head">
         <div class="ai-interpret__logo">
@@ -28,7 +29,8 @@
       <!-- 输入区 -->
       <p class="ai-interpret__label">输入你的分析需求</p>
       <div class="ai-interpret__row">
-        <el-input v-model="prompt" class="ai-interpret__input" placeholder="例如：分析深圳大模型岗位的薪资" />
+        <el-input v-model="prompt" @keydown.enter.prevent="startAnalysis" class="ai-interpret__input"
+          placeholder="例如：分析深圳大模型岗位的薪资" />
         <el-button class="ai-interpret__submit" type="primary" :loading="loading" @click="startAnalysis"
           :disabled="loading || !prompt.trim()">
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -81,9 +83,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { Close, List } from '@element-plus/icons-vue'
 import { useAIStream } from '@/composables/useAIStream'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { sectionNumber, sectionText } from '@/utils/aiText'
 
 interface JobRow {
@@ -111,10 +114,37 @@ const { top = 160, left = 1000, searchJobData } = defineProps<Props>()
 /** 浮层显隐：默认显示；外部可通过 v-model 控制 */
 const visible = defineModel<boolean>({ default: true })
 
+/** 浮层根节点，用于判断点击是否落在浮层内部 */
+const rootRef = ref<HTMLElement | null>(null)
+
+// 点击浮层外部即关闭
+const handleOutside = (event: MouseEvent) => {
+  if (!visible.value) return
+  if (rootRef.value?.contains(event.target as Node)) return
+  visible.value = false
+}
+
+// 只在浮层打开时监听外部点击；并延后到本次点击事件结束后再注册，
+// 否则「点击表格行打开浮层」的那一次点击会立刻把刚打开的浮层关掉
+watch(visible, (value) => {
+  if (value) {
+    setTimeout(() => document.addEventListener('mousedown', handleOutside), 0)
+  } else {
+    document.removeEventListener('mousedown', handleOutside)
+  }
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutside)
+})
+
 /** 分析需求输入 */
 const prompt = ref('')
 
 const { sections, loading, error, start, stop, reset } = useAIStream()
+
+// 用户个人信息（服务端按请求 IP 返回，store 内已做缓存）
+const personalInfoStore = usePersonalInfoStore()
 
 // 结构化结果
 const matchScore = computed(() => sectionNumber(sections.value, '匹配度'))
@@ -127,12 +157,29 @@ const jobInfo = computed(
     `岗位：${searchJobData.job_name}｜公司：${searchJobData.company}｜薪资：${searchJobData.salary_min}k-${searchJobData.salary_max}k｜经验要求：${searchJobData.experience}｜技能要求：${searchJobData.skill_tags.join('、')}`,
 )
 
-const startAnalysis = () => {
-  start({ scene: 'interpret', input: prompt.value, context: jobInfo.value })
+/** 用户没输入分析需求时的默认诉求：点击表格行后直接用它发起分析 */
+const DEFAULT_PROMPT = '分析该岗位与我的匹配度，并给出建议'
+
+// 岗位信息 + 用户个人信息一起提交，匹配度/优势/建议才能结合用户自身情况
+const startAnalysis = async () => {
+  const input = prompt.value.trim() || DEFAULT_PROMPT
+  await personalInfoStore.fetchPersonal()
+  const context = [jobInfo.value, personalInfoStore.context].filter(Boolean).join('\n')
+  start({ scene: 'interpret', input, context })
 }
 
-// 点的是另一个岗位时清掉上一次结果
-watch(() => searchJobData.id, () => reset())
+// 打开浮层、或切换到另一个岗位时自动发起分析，点击后直接出结果
+watch(
+  () => (visible.value ? searchJobData.id : 0),
+  async (id) => {
+    if (!id) return
+    // 先中止并清空上一次的结果，否则 start 会因 loading 中被忽略
+    reset()
+    // if (!prompt.value.trim()) prompt.value = DEFAULT_PROMPT
+    await startAnalysis()
+  },
+  { immediate: true },
+)
 // 浮层被关掉时中止请求
 watch(visible, (value) => {
   if (!value) stop()
@@ -161,15 +208,26 @@ watch(visible, (value) => {
   position: fixed;
   z-index: 2000;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: 420px;
   max-width: calc(100vw - 24px);
   padding: 20px;
+  overflow: hidden;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   box-shadow:
     0 12px 32px 0 rgba(15, 23, 42, 0.12),
     0 2px 6px 0 rgba(15, 23, 42, 0.06);
+}
+
+/* 头部、输入区、底部保持自身高度，高度不足时只压缩结果面板 */
+.ai-interpret__head,
+.ai-interpret__label,
+.ai-interpret__row,
+.ai-interpret__foot {
+  flex-shrink: 0;
 }
 
 /* 头部 */
@@ -262,10 +320,13 @@ watch(visible, (value) => {
   vertical-align: middle;
 }
 
-/* 结构化结果面板 */
+/* 结构化结果面板：占满父级剩余高度，内容超出时自身滚动 */
 .ai-interpret__panel {
+  flex: 1 1 auto;
+  min-height: 0;
   margin-top: 20px;
   padding: 16px;
+  overflow-y: auto;
   background: #eaf3fe;
   border-radius: 12px;
 }

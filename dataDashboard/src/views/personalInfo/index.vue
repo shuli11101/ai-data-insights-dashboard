@@ -1,6 +1,10 @@
 <template>
   <div class="personal-info">
-    <section class="personal-info__card">
+    <!-- 首次请求返回前先占位：避免「已填写」的用户瞬间看到空态 -->
+    <section v-if="!personalInfoStore.loaded" v-loading="true" class="personal-info__card personal-info__loading">
+    </section>
+    <!-- 当存在用户信息时 -->
+    <section v-else-if="isFilled" class="personal-info__card">
       <h2 class="personal-info__title">个人基础信息</h2>
       <p class="personal-info__desc">填写后AI将生成更精准的技能评估与求职建议</p>
 
@@ -63,16 +67,28 @@
         </div>
       </el-form>
     </section>
+    <!-- 用户未填写信息时：模糊光斑背景 + 居中文案 -->
+    <section v-else class="personal-info__card personal-info__empty">
+      <div class="personal-info__empty-content">
+        <h2 class="personal-info__title">个人基础信息</h2>
+        <p class="personal-info__desc">填写后AI将生成更精准的技能评估与求职建议</p>
+        <el-button class="personal-info__empty-btn" type="primary" @click="goHome">返回首页</el-button>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { useRouter } from 'vue-router'
 
-import { getCity, getKeywords, getPersonal, setPersonalInfo } from '@/api/server'
+import { getCity, getKeywords } from '@/api/server'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 
 const formRef = ref<FormInstance>()
+const personalInfoStore = usePersonalInfoStore()
+const router = useRouter()
 
 // 选项配置
 const educationOptions = ['中专或以下', '大专', '本科', '硕士', '博士']
@@ -121,21 +137,25 @@ const formBackup = reactive({
   expectedSalary: undefined as number | undefined
 })
 
-
+// 判断用户是否填写表单
+const isFilled = computed(() => personalInfoStore.filled)
 
 onMounted(() => {
+  // 初始化时回显已提交的个人信息
+  getInfo()
+
   // 初始化时获取城市列表
   getCityOptions()
   // 初始化时获取技术关键词
   getKeywordOptions()
-  // 初始化时回显已提交的个人信息
-  getInfo()
+
 })
 
 // 获取用户基础信息
 const getInfo = async () => {
-  const res = await getPersonal()
-  if (res) {
+  const res = await personalInfoStore.fetchPersonal()
+  console.log('个人基础信息', res)
+  if (isFilled) {
     Object.assign(form, res)
     // 备份表单数据
     Object.assign(formBackup, res)
@@ -147,8 +167,8 @@ const getCityOptions = async () => {
   const res = await getCity()
   cities.value = res.map(item => {
     return {
-      label: item.district,
-      value: item.district,
+      label: item.city,
+      value: item.city,
     }
   })
   cities.value.unshift({ label: '不限城市', value: '不限城市' })
@@ -179,7 +199,7 @@ const handleSubmit = async () => {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
   // 提交用户基础信息（IP 由服务端从请求中获取）
-  await setPersonalInfo({
+  await personalInfoStore.submitPersonal({
     city: form.city,
     experience: form.experience,
     currentSalary: form.currentSalary,
@@ -187,7 +207,6 @@ const handleSubmit = async () => {
     education: form.education,
     skills: form.skills
   })
-  // 表单副本数据更新
   Object.assign(formBackup, form)
   ElMessage.success('提交成功')
 }
@@ -195,6 +214,11 @@ const handleSubmit = async () => {
 const handleReset = () => {
   // 恢复表单数据
   Object.assign(form, formBackup)
+}
+
+// 返回首页
+const goHome = () => {
+  router.push({ name: 'home' })
 }
 </script>
 
@@ -208,7 +232,7 @@ const handleReset = () => {
   max-width: 1760px;
   margin: 0 auto;
   padding: 24px;
-  background: #ffffff;
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 55%, #ecfeff 100%);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow:
@@ -263,6 +287,73 @@ const handleReset = () => {
 .salary-desc {
   margin: 5px 12px;
   color: rgb(100, 116, 139);
+}
+
+/* 未填写信息时的空态：柔和渐变打底 + 模糊光斑，文案居中 */
+.personal-info__empty {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 55%, #ecfeff 100%);
+}
+
+/* 两个圆形色块做高斯模糊，形成背景的「模糊感」光晕 */
+.personal-info__empty::before,
+.personal-info__empty::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.65;
+}
+
+.personal-info__empty::before {
+  top: -60px;
+  left: 12%;
+  width: 260px;
+  height: 260px;
+  background: #a5b4fc;
+}
+
+.personal-info__empty::after {
+  right: 10%;
+  bottom: -80px;
+  width: 300px;
+  height: 300px;
+  background: #67e8f9;
+}
+
+/* 文案盖在光斑之上并水平居中 */
+.personal-info__empty-content {
+  position: relative;
+  z-index: 1;
+  padding: 0 20px;
+  text-align: center;
+}
+
+/* 居中时不需要底部留白 */
+.personal-info__empty-content .personal-info__desc {
+  margin-bottom: 0;
+}
+
+/* 空态按钮：与上方文案保持间距 */
+.personal-info__empty-btn {
+  background-color: #6774fe;
+  margin-top: 20px;
+
+}
+
+.personal-info__empty-btn:hover {
+  background-color: #4f60f9;
+
+}
+
+/* 首次请求未返回时的占位：高度与空态一致，避免布局跳动 */
+.personal-info__loading {
+  min-height: 320px;
 }
 
 /* 手机端：页面与卡片内边距同步收窄 */

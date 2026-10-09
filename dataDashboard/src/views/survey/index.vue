@@ -1,6 +1,6 @@
 <template>
   <div class="survey">
-    <el-dialog v-model="visible" width="50%">
+    <el-dialog v-model="visible" width="50%" :close-on-click-modal="false">
       <template #title>
         <span class="dialog-title">个人基础信息</span>
       </template>
@@ -69,7 +69,10 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
-import { getCity, getClientIp, getKeywords, setPersonalInfo } from '@/api/server'
+import { getCity, getKeywords } from '@/api/server'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
+
+const personalInfoStore = usePersonalInfoStore()
 
 const visible = ref(true)
 const formRef = ref<FormInstance>()
@@ -102,7 +105,6 @@ const skillOptions = ref<{ label: string, value: string }[]>([])
 const cities = ref<{ label: string, value: string }[]>([])
 
 const form = reactive({
-  ip: '',
   education: '',
   experience: '',
   skills: [] as string[],
@@ -116,8 +118,6 @@ onMounted(() => {
   getCityOptions()
   // 初始化时获取技术关键词
   getKeywordOptions()
-  // 初始化时获取ip地址
-  getIp()
 })
 
 
@@ -127,8 +127,8 @@ const getCityOptions = async () => {
   const res = await getCity()
   cities.value = res.map(item => {
     return {
-      label: item.district,
-      value: item.district,
+      label: item.city,
+      value: item.city,
     }
   })
   cities.value.unshift({ label: '不限城市', value: '不限城市' })
@@ -156,22 +156,13 @@ const rules: FormRules = {
   city: [{ required: true, message: '请选择意向城市', trigger: SUBMIT_TRIGGER }]
 }
 
-// 获取ip地址
-const getIp = async () => {
-  const res = await getClientIp()
-  form.ip = res.ip
-}
-
 const handleSubmit = async () => {
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
   console.log(form)
-  // 获取用户ip
-  await getIp()
-  // 提交用户基础信息
-  await setPersonalInfo({
-    ip: form.ip,
+  // 提交用户基础信息（IP 由服务端从请求中获取）
+  await personalInfoStore.submitPersonal({
     city: form.city,
     experience: form.experience,
     currentSalary: form.currentSalary,
