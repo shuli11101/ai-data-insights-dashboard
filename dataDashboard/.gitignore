@@ -38,6 +38,10 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
+# CloudBase 云函数构建产物
+cloudbase/index.js
+cloudbase-deploy.zip
+
 # 环境变量
 .env
 .env.*
