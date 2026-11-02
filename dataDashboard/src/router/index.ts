@@ -3,6 +3,17 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // 登录 / 注册：独立全屏页面，不套用顶部导航布局
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/login/index.vue'),
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/register/index.vue'),
+    },
     {
       path: '/',
       name: 'index',

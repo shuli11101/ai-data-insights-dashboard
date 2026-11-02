@@ -1,6 +1,8 @@
 import axios from 'axios'
 import type { AxiosError, AxiosRequestConfig } from 'axios'
 
+import { getToken } from './token'
+
 /** 后端统一响应结构 */
 export interface ApiResponse<T> {
   code: number
@@ -11,6 +13,15 @@ export interface ApiResponse<T> {
 const service = axios.create({
   baseURL: '/api',
   timeout: 10_000,
+})
+
+// 请求拦截器：已登录时统一带上 Authorization: Bearer <token>
+service.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 // 响应拦截器：统一剥壳 + 统一错误信息

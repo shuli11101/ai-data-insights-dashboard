@@ -46,3 +46,6 @@ cloudbase-deploy.zip
 .env
 .env.*
 !.env.example
+
+# 本地头像上传目录
+uploads/

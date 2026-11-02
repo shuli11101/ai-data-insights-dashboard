@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import type { RowDataPacket } from 'mysql2'
 import pool from '../config/db'
+import { optionalAuth } from '../middleware/auth'
+import { isFavorited } from '../services/user.service'
 
 export const homeRouter = Router()
 
@@ -25,6 +27,7 @@ homeRouter.get('/jobList', async (req, res) => {
   const salaryMin = toNumber(req.query.salaryMin)
   const salaryMax = toNumber(req.query.salaryMax)
   const keyword = toFilter(req.query.keyword)
+  console.log(keyword)
   const jobName = toFilter(req.query.jobName)
   const page = Math.max(Number(req.query.page) || 1, 1)
   const size = Math.min(100, Math.max(1, Number(req.query.size) || 10))
@@ -51,7 +54,8 @@ homeRouter.get('/jobList', async (req, res) => {
       (? IS NULL AND ? IS NULL)
       OR (salary_min <= IFNULL(?, 9999) AND salary_max >= IFNULL(?, 0))
     )
-    AND (? IS NULL OR JSON_CONTAINS(skill_tags, JSON_QUOTE(?)))`,
+    -- 关键词：仅模糊匹配「岗位名称」，不匹配公司、薪资、技能标签
+    AND (? IS NULL OR job_name LIKE CONCAT('%', ?, '%'))`,
       [jobName, jobName, experienceMin, experienceMax, experienceMax, experienceMin,
         city, city, salaryMin, salaryMax, salaryMax, salaryMin, keyword, keyword],
 ),
@@ -85,7 +89,8 @@ homeRouter.get('/jobList', async (req, res) => {
       (? IS NULL AND ? IS NULL)
       OR (salary_min <= IFNULL(?, 9999) AND salary_max >= IFNULL(?, 0))
     )
-    AND (? IS NULL OR JSON_CONTAINS(skill_tags, JSON_QUOTE(?)))
+    -- 关键词：仅模糊匹配「岗位名称」，不匹配公司、薪资、技能标签
+    AND (? IS NULL OR job_name LIKE CONCAT('%', ?, '%'))
   ORDER BY id DESC limit ?, ?;`,
       [jobName, jobName, experienceMin, experienceMax, experienceMax, experienceMin,
         city, city, salaryMin, salaryMax, salaryMax, salaryMin, keyword, keyword, (page - 1) * size, size],
@@ -99,6 +104,46 @@ homeRouter.get('/jobList', async (req, res) => {
       list: rows,
       total: (countRows[0] as RowDataPacket & { total: number }).total,
     }
+  })
+})
+
+// 按 id 获取单个岗位详情
+// 带合法 token 时额外返回 favorited（当前用户是否已收藏），未登录固定为 false
+homeRouter.get('/jobDetail', optionalAuth, async (req, res) => {
+  const rawId = req.query.id
+  const idText = Array.isArray(rawId) ? rawId[0] : rawId
+  const id = Number(idText)
+  // id 必须是正整数；'', 'abc', '1.5' 等一律拒绝
+  if (typeof idText !== 'string' || !Number.isInteger(id) || id <= 0) {
+    res.status(400).json({
+      code: 1,
+      message: 'id 参数错误',
+    })
+    return
+  }
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, job_name, company, city, district, salary_min, salary_max,
+            experience, skill_tags, publish_date, created_at
+     FROM job_positions
+     WHERE id = ?`,
+    [id],
+  )
+
+  if (rows.length === 0) {
+    res.status(404).json({
+      code: 1,
+      message: '岗位不存在',
+    })
+    return
+  }
+
+  const favorited = req.userId ? await isFavorited(req.userId, id) : false
+
+  res.json({
+    code: 0,
+    message: 'success',
+    data: { ...rows[0], favorited },
   })
 })
 
@@ -222,6 +267,18 @@ homeRouter.get('/experienceSalary', async (req, res) => {
 homeRouter.get('/city', async (req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT DISTINCT city FROM job_positions WHERE city IS NOT NULL AND city <> '' ORDER BY city;`,
+  )
+  res.json({
+    code: 0,
+    message: 'success',
+    data: rows,
+  })
+})
+
+// 城市字典表：全量下发 city 表（省市区编码字典，与 job_positions 的岗位城市无关）
+homeRouter.get('/cityList', async (req, res) => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, code, name, province, city, area, town FROM city ORDER BY id;`,
   )
   res.json({
     code: 0,

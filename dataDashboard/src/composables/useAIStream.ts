@@ -25,6 +25,7 @@ export function useAIStream() {
 
   let controller: AbortController | null = null
 
+  // 解析原始文本为小节
   const sections = computed<AISection[]>(() => parseSections(raw.value))
 
   // 小节标题是流式到达的（## 无 → ## 无法 → ## 无法分析），

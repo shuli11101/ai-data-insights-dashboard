@@ -1,43 +1,53 @@
 <template>
   <header class="header">
     <div class="header__inner">
-      <!-- 左侧按钮，展开/收起左侧导航栏 -->
-      <!-- 收起 / 展开 -->
-      <div class="aside__foot">
-        <el-button class="aside__toggle" text @click="changeCollapsed">
-          <el-icon>
-            <ArrowRight v-if="props.collapsed" />
-            <ArrowLeft v-else />
-          </el-icon>
-        </el-button>
-      </div>
-      <!-- 右侧操作按钮（品牌区已移到左侧导航栏） -->
+      <!-- 品牌 -->
+      <router-link to="/" class="header__brand">
+        <span class="header__logo">
+          <svg width="22" height="22" viewBox="0 0 32 36" fill="none" aria-hidden="true">
+            <path d="M10.5 24.6v-4.4M16.1 24.6V15.9M21.7 24.6V11.4" stroke="#DFF7F4" stroke-width="2.7"
+              stroke-linecap="round" />
+            <circle cx="28.2" cy="9.2" r="3.3" fill="#00BEBD" stroke="#E7F7F5" stroke-width="1.2" />
+          </svg>
+        </span>
+        <span class="header__title">JobVision</span>
+      </router-link>
+
+      <!-- 城市（静态展示，后续接入城市切换） -->
+      <el-button text class="header__location" :icon="Location">
+        上海
+        <el-icon class="header__location-chevron">
+          <ArrowDown />
+        </el-icon>
+      </el-button>
+
+      <!-- 导航：原侧边栏的几项功能 -->
+      <el-menu class="header__menu" mode="horizontal" :default-active="route.path" :ellipsis="false" router>
+        <el-menu-item v-for="item in navItems" :key="item.path" :index="item.path">{{ item.label }}</el-menu-item>
+      </el-menu>
+
+      <!-- 右侧：快捷分析 + 用户 -->
       <div class="header__actions">
-        <!-- AI智能分析 -->
-        <el-button @click="changeAnalysisVisible" class="header__aiAnalyse-btn" type="button">
-          <svg class="header__aiAnalyse-icon" width="16" height="16" viewBox="0 0 18 18" fill="none"
-            xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M8.26275 2.1105C8.32905 1.75553 8.63889 1.4982 9 1.4982C9.36111 1.4982 9.67095 1.75553 9.73725 2.1105L10.5255 6.279C10.6401 6.88551 11.1145 7.35993 11.721 7.4745L15.8895 8.26275C16.2445 8.32905 16.5018 8.63889 16.5018 9C16.5018 9.36111 16.2445 9.67095 15.8895 9.73725L11.721 10.5255C11.1145 10.6401 10.6401 11.1145 10.5255 11.721L9.73725 15.8895C9.67095 16.2445 9.36111 16.5018 9 16.5018C8.63889 16.5018 8.32905 16.2445 8.26275 15.8895L7.4745 11.721C7.35993 11.1145 6.88551 10.6401 6.279 10.5255L2.1105 9.73725C1.75553 9.67095 1.4982 9.36111 1.4982 9C1.4982 8.63889 1.75553 8.32905 2.1105 8.26275L6.279 7.4745C6.88551 7.35993 7.35993 6.88551 7.4745 6.279L8.26275 2.1105"
-              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M15 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-              stroke-linejoin="round" />
-            <path d="M16.5 3H13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-              stroke-linejoin="round" />
-            <path
-              d="M1.5 15C1.5 15.8279 2.17213 16.5 3 16.5C3.82787 16.5 4.5 15.8279 4.5 15C4.5 14.1721 3.82787 13.5 3 13.5C2.17213 13.5 1.5 14.1721 1.5 15H1.5"
-              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          AI 分析
-        </el-button>
-        <!-- 切换暗黑模式按钮 -->
-        <el-button class="header__theme-btn" aria-label="切换暗黑模式">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M15.7387 9.3645C15.5429 12.9926 12.5103 15.8147 8.87746 15.7496C5.24464 15.6844 2.31522 12.7553 2.24965 9.12246C2.18409 5.48965 5.00589 2.45674 8.63399 2.2605C8.93774 2.244 9.09674 2.6055 8.93549 2.86275C7.82488 4.63969 8.08776 6.94804 9.56948 8.42976C11.0512 9.91148 13.3595 10.1744 15.1365 9.06375C15.3945 8.9025 15.7552 9.06075 15.7387 9.3645"
-              stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </el-button>
+        <el-button class="header__analyze" :icon="Plus" @click="changeAnalysisVisible">分析岗位</el-button>
+
+        <span class="header__divider"></span>
+
+        <el-dropdown class="header__user-dropdown" trigger="click" popper-class="header-user-menu"
+          @command="handleUserCommand">
+          <span class="header__user">
+            <div v-if="avatar"></div>
+            <el-avatar v-else :size="32" class="header__avatar">{{ nickname.slice(0, 1) }}</el-avatar>
+            <span class="header__username">{{ nickname }}</span>
+            <el-icon class="header__chevron">
+              <ArrowDown />
+            </el-icon>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="logout" :icon="SwitchButton">退出</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -45,82 +55,364 @@
     <AiAnalysisDrawer v-model="analysisVisible" />
   </header>
 </template>
+
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import { ArrowDown, Location, Plus, SwitchButton } from '@element-plus/icons-vue'
+
+import { useUserStore } from '@/stores/user'
+import { removeToken } from '@/utils/token'
 
 import AiAnalysisDrawer from './ai-analysis-drawer.vue'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 
-//  侧边栏展开/收起
 const props = defineProps({
-  collapsed: {
-    type: Boolean,
-    default: false
-  }
+  avatar: {
+    type: String,
+    default: '',
+  },
+  nickname: {
+    type: String,
+    default: '',
+  },
 })
-const emit = defineEmits(['update:collapsed'])
 
-const changeCollapsed = () => {
-  emit('update:collapsed', !props.collapsed)
+const avatar = ref(props.avatar)
+const nickname = ref(props.nickname)
+
+
+
+/** 顶部导航：由原左侧导航栏迁移而来 */
+const navItems = [
+  { label: '首页', path: '/' },
+  { label: 'AI 分析', path: '/ai-analyse' },
+  { label: '个人信息', path: '/personal-info' },
+  { label: 'About', path: '/about' },
+]
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
+/** 用户下拉菜单：当前只有退出 */
+const handleUserCommand = (command: string | number | object) => {
+  if (command !== 'logout') return
+
+  removeToken()
+  userStore.clearProfile()
+  router.push('/login')
 }
 
-
-/** 抽屉显隐：默认关闭，交互（如点「AI 分析」按钮打开）待补充 */
+/** 抽屉显隐：点「分析岗位」打开 */
 const analysisVisible = ref(false)
 const changeAnalysisVisible = () => {
   analysisVisible.value = !analysisVisible.value
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .header {
   width: 100%;
   background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
-}
+  border-bottom: 1px solid #e2ebe9;
 
-.header__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 48px;
-  padding: 0 20px;
-}
+  .header__inner {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1280px;
+    height: 52px;
+    padding: 0 40px;
+    margin: 0 auto;
+  }
 
-/* 右侧按钮组 */
-.header__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+  // ---------- 品牌 ----------
+  .header__brand {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+  }
 
-/* AI 分析按钮图标：currentColor 取下面的品牌蓝 */
-.header__aiAnalyse-icon {
-  flex-shrink: 0;
-  margin-right: 6px;
-  color: #409eff;
-}
+  .header__logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: #007c77;
+    border-radius: 11px;
+  }
 
-.header__aiAnalyse-btn:hover {
-  background: #f9fafb;
-  color: #535353;
-}
+  .header__title {
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    color: #17252b;
+  }
 
-.header__theme-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #ffffff;
-  cursor: pointer;
-}
+  // ---------- 城市 ----------
+  .header__location {
+    flex-shrink: 0;
+    height: auto;
+    padding: 0;
+    margin-left: 44px;
+    font-family: inherit;
+    font-size: 13px;
 
-.header__theme-btn:hover {
-  background: #f9fafb;
+    --el-button-text-color: #3d4b54;
+    --el-button-hover-text-color: #007c77;
+    --el-button-hover-bg-color: transparent;
+    --el-button-active-bg-color: transparent;
+    // text 按钮的 hover/active 背景走 fill 变量，一并去掉灰底
+    --el-fill-color-light: transparent;
+    --el-fill-color: transparent;
+
+    .header__location-chevron {
+      margin-left: 6px;
+      color: #7d8d94;
+    }
+  }
+
+  // ---------- 导航 ----------
+  .header__menu {
+    flex: 0 1 auto;
+    height: 100%;
+    min-width: 0;
+    margin-left: 26px;
+    overflow-x: auto;
+    border-bottom: none;
+    scrollbar-width: none;
+
+    --el-menu-bg-color: transparent;
+    --el-menu-text-color: #65747c;
+    --el-menu-active-color: #007c77;
+    --el-menu-hover-text-color: #007c77;
+    --el-menu-hover-bg-color: transparent;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    :deep(.el-menu-item) {
+      height: 100%;
+      padding: 0;
+      margin: 0 14px;
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      font-size: 14px;
+      line-height: 1;
+      border-bottom: none;
+    }
+
+    :deep(.el-menu-item:last-child) {
+      margin-right: 0;
+    }
+
+    :deep(.el-menu-item:hover) {
+      background: transparent;
+    }
+
+    :deep(.el-menu-item.is-active) {
+      position: relative;
+      font-weight: 600;
+      background: transparent;
+      // EP 横向菜单默认给选中项整条 2px 下划线，这里压掉，改用 32px 短下划线
+      border-bottom: none !important;
+    }
+
+    :deep(.el-menu-item.is-active::after) {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 32px;
+      height: 2px;
+      content: '';
+      background: #007c77;
+      border-radius: 1px;
+      transform: translateX(-50%);
+    }
+  }
+
+  // ---------- 右侧操作 ----------
+  .header__actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
+  }
+
+  .header__analyze {
+    height: 38px;
+    padding: 0 15px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 10px;
+
+    --el-button-text-color: #007c77;
+    --el-button-bg-color: #ffffff;
+    --el-button-border-color: #cfe1dd;
+    --el-button-hover-text-color: #007c77;
+    --el-button-hover-bg-color: #f3faf8;
+    --el-button-hover-border-color: #cfe1dd;
+    --el-button-active-text-color: #007c77;
+    --el-button-active-bg-color: #f3faf8;
+    --el-button-active-border-color: #cfe1dd;
+  }
+
+  .header__divider {
+    width: 1px;
+    height: 16px;
+    background: #e3ebec;
+  }
+
+  .header__user-dropdown {
+    display: flex;
+    align-items: center;
+  }
+
+  .header__user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .header__avatar {
+    font-size: 13px;
+    font-weight: 600;
+
+    --el-avatar-bg-color: #e8f7f4;
+    --el-avatar-text-color: #007c77;
+
+    border: 1px solid #d3eae6;
+  }
+
+  .header__username {
+    font-size: 13px;
+    color: #3d4b54;
+  }
+
+  .header__chevron {
+    color: #7d8d94;
+  }
+
+  // ---------- 响应式 ----------
+  @media (max-width: 1199.98px) {
+    .header__inner {
+      padding: 0 24px;
+    }
+
+    .header__location {
+      margin-left: 28px;
+    }
+
+    .header__menu {
+      margin-left: 14px;
+
+      :deep(.el-menu-item) {
+        margin: 0 11px;
+      }
+    }
+  }
+
+  @media (max-width: 1023.98px) {
+    .header__inner {
+      padding: 0 20px;
+    }
+
+    .header__location,
+    .header__username {
+      display: none;
+    }
+
+    .header__menu {
+      margin-left: 16px;
+
+      :deep(.el-menu-item) {
+        margin: 0 9px;
+        font-size: 13px;
+      }
+
+      :deep(.el-menu-item.is-active::after) {
+        width: 24px;
+      }
+    }
+  }
+
+  @media (max-width: 640px) {
+    .header__inner {
+      height: 64px;
+      padding: 0 16px;
+    }
+
+    .header__logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+    }
+
+    .header__title {
+      font-size: 18px;
+    }
+
+    .header__menu {
+      margin-left: 8px;
+
+      :deep(.el-menu-item) {
+        margin: 0 7px;
+        font-size: 12.5px;
+      }
+    }
+
+    .header__analyze {
+      height: 34px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+
+    .header__divider {
+      display: none;
+    }
+  }
+}
+</style>
+
+<style lang="scss">
+// 下拉菜单挂在 body 下，脱离 scoped 作用域，用独立的全局样式块
+.header-user-menu {
+  min-width: 160px;
+
+  .el-dropdown-menu {
+    padding: 6px;
+  }
+
+  .el-dropdown-menu__item {
+    height: 42px;
+    padding: 0 12px;
+    font-size: 13px;
+    color: #f56c6c;
+    border-radius: 8px;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+
+    .el-icon {
+      margin-right: 8px;
+      font-size: 15px;
+      color: #f56c6c;
+    }
+
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus {
+      color: #f56c6c;
+      background: #fef0f0;
+    }
+  }
 }
 </style>

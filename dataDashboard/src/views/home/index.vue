@@ -1,975 +1,1328 @@
 <template>
   <div class="home">
+    <!-- 首屏：搜索 + 热门方向（静态演示数据，暂不接入接口） -->
+    <section class="hero">
+      <div class="home__inner hero__inner">
+        <div class="hero__main">
+          <h1 class="hero__title">找工作，<br />先看清再投递。</h1>
+          <p class="hero__desc">把岗位要求、技能差距和薪资区间，整理成一份能用的判断。</p>
 
-    <!-- 用户基础信息dial（服务端按 IP 判断：已填写过则不再展示） -->
-    <Survey v-if="showSurvey" />
-
-    <!-- 图表区 -->
-    <section class="charts">
-      <!-- 薪资分布：柱状图 -->
-      <ChartCard :title="salaryChart.title" :subtitle="salaryChart.subtitle">
-        <div ref="salaryChartEl" class="charts__canvas"></div>
-      </ChartCard>
-
-      <!-- 技术栈热度：条形图 -->
-      <ChartCard :title="stackChart.title" :subtitle="stackChart.subtitle">
-        <div ref="stackChartEl" class="charts__canvas"></div>
-      </ChartCard>
-
-      <!-- 深圳各区岗位数量：环形图 -->
-      <ChartCard :title="districtChart.title" :subtitle="districtChart.subtitle">
-        <div ref="districtChartEl" class="charts__canvas"></div>
-      </ChartCard>
-
-      <!-- 经验与平均薪资：面积折线图 -->
-      <ChartCard :title="experienceChart.title" :subtitle="experienceChart.subtitle">
-        <div ref="experienceChartEl" class="charts__canvas"></div>
-      </ChartCard>
-    </section>
-
-
-    <!-- 筛选区 -->
-    <section class="filter">
-      <div class="filter__grid">
-        <div v-for="item in filterItems" :key="item.prop" class="filter__item">
-          <span class="filter__label">{{ item.label }}</span>
-          <!-- 岗位名称支持文本搜索：回车即触发查询 -->
-          <el-input v-if="item.type === 'input'" v-model="query[item.prop]" class="filter__input" placeholder="请输入岗位名称"
-            clearable :prefix-icon="Search" @keydown.enter="handleQuery" @clear="handleQuery" />
-          <!-- 区间筛选（经验年限 / 薪资）：两个数字分开填，只填一端也能查 -->
-          <div v-else-if="item.type === 'number-range'" class="filter__range">
-            <el-input v-model="query[item.prop]" class="filter__number" type="number" :min="0" :step="1"
-              placeholder="最低" />
-            <span class="filter__range-sep">~</span>
-            <el-input v-model="query[item.endProp ?? item.prop]" class="filter__number" type="number" :min="0" :step="1"
-              placeholder="最高" />
+          <div class="search">
+            <el-select v-model="city" class="search__city">
+              <template #prefix>
+                <el-icon>
+                  <Location />
+                </el-icon>
+              </template>
+              <el-option v-for="item in cityOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+            <span class="search__divider"></span>
+            <el-input v-model="searchText" class="search__input" placeholder="搜索职位、公司或技能，例如「前端开发」" :prefix-icon="Search"
+              clearable @keyup.enter="handleSearch" @clear="handleSearch" />
+            <el-button type="primary" class="search__btn" @click="handleSearch">搜索</el-button>
           </div>
-          <el-select v-else v-model="query[item.prop]" class="filter__select" :filterable="item.filterable"
-            placeholder="请选择">
-            <div v-for="option in item.options" :key="option.value">
-              <el-option :label="option.label" :value="option.value" />
-            </div>
-          </el-select>
+
+          <div class="hero__hot">
+            <span class="hero__hot-label">热门搜索</span>
+            <el-link v-for="word in hotKeywords" :key="word" :underline="false" class="hero__hot-item"
+              @click="pickKeyword(word)">{{ word }}</el-link>
+          </div>
         </div>
 
-        <!-- 查询按钮 -->
-        <div class="filter__actions">
-          <el-button @click="handleQuery" type="primary" class="filter__query" :icon="Search">查询</el-button>
-          <el-button class="filter__reset" :icon="Refresh" @click="handleReset">重置</el-button>
-        </div>
+        <aside class="hero__directions">
+          <h2 class="directions__title">热门方向</h2>
+          <ul class="directions__grid">
+            <li v-for="item in directions" :key="item" class="directions__item">{{ item }}</li>
+          </ul>
+          <el-link :underline="false" class="directions__more">查看全部职位</el-link>
+        </aside>
       </div>
     </section>
 
-    <!-- 岗位数据表格 -->
-    <!-- 标题 -->
-    <section :key="refreshKey" class="jobs">
-      <div class="jobs__head">
-        <h3 class="jobs__title">
-          <el-icon class="jobs__title-icon">
-            <Tickets />
-          </el-icon>
-          <span>岗位数据</span>
-        </h3>
-        <el-button @click="handleRefresh" :icon="Refresh">刷新</el-button>
+    <!-- 热门职业 -->
+    <section class="home__inner recommend">
+      <div class="recommend__head">
+        <div class="recommend__intro">
+          <h2 class="recommend__title">热门职业</h2>
+          <p class="recommend__desc">
+            前端开发 · 上海 · 3–5 年 · 20–30K
+            <el-button link class="recommend__edit">修改意向</el-button>
+          </p>
+        </div>
+
+        <el-tabs v-model="activeTab" class="recommend__tabs">
+          <el-tab-pane v-for="tab in tabs" :key="tab" :label="tab" :name="tab" />
+        </el-tabs>
       </div>
 
-      <!-- 岗位列表 - 暂时使用slice进行分页 -->
-      <el-table :data="jobList" class="jobs__table" @row-click="searchJobDetail">
-        <el-table-column prop="job_name" label="岗位名称" min-width="80" />
-        <el-table-column align="center" prop="company" label="公司" />
-        <el-table-column align="center" label="薪资（单位：K）">
-          <template #default="{ row }">{{ row.salary_min }}-{{ row.salary_max }}</template>
-        </el-table-column>
-        <el-table-column align="center" prop="experience" label="经验" />
-        <el-table-column label="技能标签">
-          <template #default="{ row }">
-            <el-tag v-if="!row.isDescription" v-for="tag in row.skill_tags" :key="tag" class="jobs__tag">
-              <div>{{ tag }}</div>
-            </el-tag>
-            <div v-else>
-              <el-button size="small" @click.stop="openJobDescription(row)">查看详情</el-button>
+      <div class="recommend__body">
+        <!-- 职位列表 -->
+        <el-card shadow="never" class="jobs">
+          <article v-for="job in filteredJobs" :key="job.id" class="job">
+            <div class="job__top">
+              <h3 class="job__title">{{ job.title }}</h3>
+              <p class="job__salary">{{ job.salary }}</p>
             </div>
+            <div class="job__meta">
+              <span>{{ job.region }}</span>
+            </div>
+            <div class="job__bottom">
+              <div class="job__company">{{ job.company }}</div>
+            </div>
+          </article>
+
+          <el-empty v-if="!jobListLoading && !filteredJobs.length" description="没有找到匹配的岗位，换个关键词试试。" :image-size="72" />
+        </el-card>
+
+        <!-- 右侧：求职意向 / 最近分析 / 求职建议 -->
+        <el-card shadow="never" class="side" :class="{ 'side--empty': !sideHasData }">
+          <template v-if="sideHasData">
+            <section class="side__section">
+              <span class="side__label">求职意向</span>
+              <div class="side__intent-row">
+                <h3 class="side__intent">前端开发工程师</h3>
+                <el-button link class="side__link">编辑</el-button>
+              </div>
+              <p class="side__intent-desc">上海 · 3–5 年 · 20–30K</p>
+            </section>
+
+            <section class="side__section">
+              <div class="side__row">
+                <h4 class="side__subtitle">最近分析</h4>
+                <el-button link class="side__link">全部 7 份</el-button>
+              </div>
+              <div v-for="item in recentAnalyses" :key="item.title + item.company" class="analysis">
+                <div class="analysis__info">
+                  <p class="analysis__title">{{ item.title }}</p>
+                  <p class="analysis__desc">{{ item.company }} · 匹配分析</p>
+                </div>
+                <span class="analysis__score">{{ item.score }}%</span>
+              </div>
+            </section>
+
+            <section class="side__section">
+              <span class="side__label">求职建议</span>
+              <blockquote class="advice">
+                <p class="advice__title">把「熟悉」和「精通」分开看。</p>
+                <p class="advice__desc">程度词，往往决定面试的深度。</p>
+              </blockquote>
+              <el-button link class="side__link advice__link">查看岗位分析</el-button>
+            </section>
           </template>
-        </el-table-column>
-      </el-table>
 
-      <div class="jobs__foot">
-        <el-pagination v-model:current-page="jobPagination.page" v-model:page-size="jobPagination.size"
-          :page-sizes="[5, 10, 20, 50]" :total="jobPagination.total" :pager-count="5"
-          layout="total, sizes, ->, prev, pager, next" prev-text="<" next-text=">" />
+          <!-- 未填写个人信息：沿用个人页的空态样式 -->
+          <div v-else-if="personalInfoStore.loaded" class="side__empty">
+            <div class="side__empty-content">
+              <h3 class="side__empty-title">还没有求职数据</h3>
+              <p class="side__empty-desc">填写个人基础信息后，这里会展示求职意向、最近分析和求职建议。</p>
+              <el-button class="side__empty-btn" type="primary" @click="goPersonalInfo">去填写</el-button>
+            </div>
+          </div>
+
+          <!-- 首次请求返回前先占位，避免闪空态 -->
+          <div v-else v-loading="true" class="side__loading"></div>
+        </el-card>
       </div>
     </section>
 
-    <!-- AI 智能解读浮层（默认显示，后续由表格行点击控制显隐与位置） -->
-    <AiInterpretCard v-model="interpretVisible" :left="interpretX" :top="interpretY" :searchJobData="searchJobData" />
+    <!-- 岗位列表 -->
+    <section class="home__inner job-wall">
+      <div class="job-wall__head">
+        <h2 class="job-wall__title">岗位列表</h2>
+        <p class="job-wall__desc">按岗位名称、薪资、地区和技术栈快速浏览</p>
+      </div>
 
-    <!-- 岗位工作描述弹窗（仅由「查看详情」按钮触发，点 .stop 阻断行点击） -->
-    <JobDescriptionDialog v-model="descVisible" :job="descJob" />
+      <div v-loading="jobListLoading" class="job-wall__grid">
+        <article v-for="item in jobList" :key="item.id" class="job-card">
+          <div class="job-card__top">
+            <h3 class="job-card__title">{{ item.title }}</h3>
+            <span class="job-card__salary">{{ item.salary }}</span>
+          </div>
+          <p class="job-card__region">{{ item.region }}</p>
+          <p class="job-card__company">{{ item.company }}</p>
+          <div class="job-card__tags">
+            <el-tag v-for="tag in item.skillTags.slice(0, 3)" :key="tag" size="small" effect="light"
+              class="job-card__tag" :title="tag">{{ formatTag(tag) }}</el-tag>
+          </div>
+        </article>
+      </div>
+
+      <!-- 滚动到底部时触发加载更多 -->
+      <div ref="loadMoreRef" class="job-wall__footer">
+        <span v-if="jobListLoading">加载中...</span>
+        <span v-else-if="jobListFinished && jobList.length">没有更多了</span>
+      </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer class="home__inner footer">
+      <div class="footer__left">
+        <span>© 2026 JobVision</span>
+        <span>为认真打磨技术的人而设计</span>
+      </div>
+      <nav class="footer__links">
+        <el-link v-for="link in footerLinks" :key="link" :underline="false" class="footer__link">{{ link }}</el-link>
+      </nav>
+    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch, computed, nextTick } from 'vue'
-import { Refresh, Search, Tickets } from '@element-plus/icons-vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-import AiInterpretCard from '@/components/ai-interpret-card.vue'
-import JobDescriptionDialog from '@/components/job-description-dialog.vue'
-import ChartCard from '@/components/chart-card.vue'
-import Survey from '@/views/survey/index.vue'
-import { useChart } from '@/composables/useChart'
-import { getJobList, getSalaryRange, getSkillTags, getDistrict, getExperienceSalary, getCity, getKeywords } from '@/api/server'
+import { Location, Search } from '@element-plus/icons-vue'
+
+import { getJobList } from '@/api/server'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
+import { useUserStore } from '@/stores/user'
 
-// 筛选项配置
-interface FilterItem {
-  prop: 'jobName' | 'city' | 'experienceMin' | 'salaryMin' | 'keyword'
-  label: string
-  defaultLabel: string,
-  /** input：文本搜索框；number-range：两个数字组成的区间；select：下拉选择 */
-  type: 'input' | 'number-range' | 'select',
-  /** 下拉是否支持输入关键词模糊筛选选项（选项较多时开启） */
-  filterable?: boolean,
-  /** number-range 专用：区间上限对应的查询字段 */
-  endProp?: 'experienceMax' | 'salaryMax',
-  options: { label: string, value: string }[],
-}
-
-
-// 筛选列表
-const cities = ref<{ label: string, value: string }[]>([])
-const keywords = ref<{ label: string, value: string }[]>([])
-
-/** 筛选项配置，各选项列表待接入接口后补充；顺序与 .filter__grid 的列定义一一对应 */
-const filterItems = computed<FilterItem[]>(() => [
-  { prop: 'jobName', label: '岗位名称', defaultLabel: '', type: 'input', options: [] },
-  { prop: 'city', label: '城市', defaultLabel: '全部城市', type: 'select', filterable: true, options: cities.value },
-  { prop: 'experienceMin', endProp: 'experienceMax', label: '工作经验（年）', defaultLabel: '', type: 'number-range', options: [] },
-  { prop: 'salaryMin', endProp: 'salaryMax', label: '薪资区间（单位：K/月）', defaultLabel: '', type: 'number-range', options: [] },
-  { prop: 'keyword', label: '技术关键词', defaultLabel: '全部技术', type: 'select', filterable: true, options: keywords.value },
-])
-
-// 查询数据
-interface JobQuery {
-  jobName: string
-  city: string
-  /** 经验年限区间、薪资区间：两端分开填，空字符串表示不限 */
-  experienceMin: string
-  experienceMax: string
-  salaryMin: string
-  salaryMax: string
-  keyword: string
-}
-
-const query = reactive<JobQuery>({
-  jobName: '',
-  city: '',
-  experienceMin: '',
-  experienceMax: '',
-  salaryMin: '',
-  salaryMax: '',
-  keyword: '',
-})
-
-// 薪资分布：柱状图（静态数据，待接入接口）
-const salaryData = ref<number[]>([])
-
-const salaryChart = {
-  title: '薪资分布',
-  subtitle: '岗位薪资区间分布（单位：个）',
-  categories: ['0-10K', '10-15K', '15-20K', '20-25K', '25-30K', '30-35K', '35-40K', '40K+'],
-  values: salaryData.value,
-  colors: ['#8cc4f4', '#4e9bf0', '#5b8ae6', '#a8cef5', '#c6dcf8', '#c6cbd2'],
-}
-
-
-// 技术栈热度：条形图
-const skillTags = ref<{ skillName: string, hotCount: number }[]>([])
-const stackChart = {
-  title: '技术栈热度',
-  subtitle: '热门技术词条提及次数',
-}
-
-// 各地方岗位数量：环形图
-const jobDistrict = ref<{ region: string, jobRatio: number }[]>([])
-const districtChart = {
-  title: '城市岗位数量',
-  subtitle: '各城市招聘岗位占比',
-  colors: ['#4e9bf0', '#4c6fe0', '#8cc4f4', '#17bca8', '#f5a623', '#bfd9f5', '#c6cbd2'],
-}
-
-// 经验与平均薪资：面积折线图
-const expSalary = ref<{ experience: string, avgSalary: number }[]>([])
-
-const experienceChart = {
-  title: '经验与平均薪资',
-  subtitle: '不同经验年限平均月薪（k）',
-}
-
-// 薪资分布
-const salaryChartEl = useChart(() => ({
-  color: salaryChart.colors,
-  grid: { top: 8, right: 8, bottom: 4, left: 0, containLabel: true },
-  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-  xAxis: {
-    type: 'category',
-    data: salaryChart.categories,
-    axisLine: { lineStyle: { color: '#e5e7eb' } },
-    axisTick: { show: false },
-    axisLabel: { color: '#64748b', fontSize: 11, rotate: 40 },
-  },
-  yAxis: {
-    type: 'value',
-    max: 10000,
-    interval: 2000,
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: '#94a3b8', fontSize: 11 },
-    splitLine: { lineStyle: { color: '#eef2f6' } },
-  },
-  series: [
-    {
-      type: 'bar',
-      colorBy: 'data',
-      barWidth: '55%',
-      itemStyle: { borderRadius: [2, 2, 0, 0] },
-      data: salaryData.value,
-    },
-  ],
-}))
-
-// 技术栈热度
-const stackChartEl = useChart(() => {
-  const counts = skillTags.value.map(item => item.hotCount || 0).map(Number)
-  // 连续渐变需要上下界，取数据最大值；空数据时兜底为 1，避免 min === max
-  const maxCount = counts.length ? Math.max(...counts) : 1
-
-  return {
-    grid: { top: 8, right: 18, bottom: 4, left: 0, containLabel: true },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    // 颜色随数值连续过渡：值越小越浅，值越大越深
-    visualMap: {
-      type: 'continuous',
-      show: false,
-      dimension: 0,
-      min: 0,
-      max: maxCount,
-      inRange: { color: ['#c6dcf8', '#8cc4f4', '#4e9bf0'] },
-    },
-    xAxis: {
-      type: 'value',
-      axisLine: { lineStyle: { color: '#e5e7eb' } },
-      axisTick: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 11 },
-      splitLine: { lineStyle: { color: '#eef2f6' } },
-    },
-    yAxis: {
-      type: 'category',
-      data: skillTags.value.map(item => item.skillName),
-      // 让第一个（Python）显示在最上方
-      inverse: true,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: {
-        color: '#64748b',
-        fontSize: 11,
-        // 锁死标签区宽度，避免最长标签把绘图区挤到右边；完整名称见 tooltip
-        width: 34,
-        overflow: 'truncate',
-        lineHeight: 14,
-      },
-    },
-    series: [
-      {
-        type: 'bar',
-        barWidth: '55%',
-        // 颜色交给 visualMap，这里不再写死单色
-        itemStyle: { borderRadius: [0, 5, 5, 0] },
-        data: counts,
-      },
-    ],
-  }
-})
-
-// 各地方岗位数量
-// 图例的三档配置：容器够宽 / 变窄缩小 / 极窄不渲染
-const districtLegend = {
-  wide: {
-    show: true,
-    itemWidth: 9,
-    itemHeight: 9,
-    right: 30,
-    itemGap: 20,
-    textStyle: { color: '#64748b', fontSize: 16 },
-  },
-  narrow: {
-    show: true,
-    itemWidth: 8,
-    itemHeight: 8,
-    right: 10,
-    itemGap: 20,
-    textStyle: { color: '#64748b', fontSize: 11 },
-  },
-  hidden: {
-    show: false,
-  },
-}
-
-// 饼图几何：有图例时左移让位，无图例时居中放大
-const districtPie = {
-  withLegend: { radius: ['50%', '78%'], center: ['36%', '50%'] },
-  noLegend: { radius: ['55%', '85%'], center: ['50%', '50%'] },
-}
-
-const districtChartEl = useChart(() => ({
-  baseOption: {
-    color: districtChart.colors,
-    tooltip: { trigger: 'item', formatter: '{b}：{d}%' },
-    legend: { orient: 'vertical', top: 'center', icon: 'roundRect', ...districtLegend.wide },
-    series: [
-      {
-        type: 'pie',
-        label: { show: false },
-        labelLine: { show: false },
-        // 扇区之间留白边
-        itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
-        // 饼图要求 { name, value }，这里把接口的 region / jobRatio 映射过去
-        data: jobDistrict.value.map(item => ({ name: item.region, value: item.jobRatio })),
-        ...districtPie.withLegend,
-      },
-    ],
-  },
-  // 容器变窄（栅格列数变化）时同步调整图例
-  // 注意 1：media 的 query 判定的是「图表容器」的尺寸，不是窗口尺寸，所以卡片变窄就会命中。
-  // 注意 2：ECharts 只会「叠加」命中的 media option，query 失效时不会自动回滚，
-  //        因此每一档都要把其它档改过的字段写全，否则多档之间会互相粘住。
-  media: [
-    {
-      query: { maxWidth: 360 },
-      option: {
-        legend: districtLegend.narrow,
-        series: [districtPie.withLegend],
-      },
-    },
-    {
-      query: { maxWidth: 320 },
-      option: {
-        legend: districtLegend.hidden,
-        series: [districtPie.noLegend],
-      },
-    },
-    // 不写 query 的这一项是 mediaDefault：所有 query 都不命中（容器够宽）时生效，
-    // 用来把上面两档改过的配置恢复回基准值，否则窗口变宽后图例不会回来
-    {
-      option: {
-        legend: districtLegend.wide,
-        series: [districtPie.withLegend],
-      },
-    },
-  ],
-}))
-
-// 经验与平均薪资：面积折线图
-const experienceChartEl = useChart(() => ({
-  // left/right 是给首尾 x 轴标签留的位置：标签以数据点为中心，贴边时首尾各会溢出半个字宽
-  grid: { top: 8, right: 24, bottom: 4, left: 14, containLabel: true },
-  tooltip: {
-    trigger: 'axis',
-    // 白底卡片，与页面其它浮层统一
-    backgroundColor: '#ffffff',
-    borderColor: '#e5e7eb',
-    borderWidth: 1,
-    padding: [8, 12],
-    textStyle: { color: '#1f2937', fontSize: 12 },
-    extraCssText: 'border-radius:8px;box-shadow:0 6px 20px rgba(15,23,42,0.12);',
-    // 平均薪资补上单位 k（与副标题「平均月薪（k）」一致）
-    formatter: (params) => {
-      const item = Array.isArray(params) ? params[0] : params
-      return (
-        `<div style="font-weight:600;">${item?.name}</div>` +
-        `<div style="margin-top:2px;color:#64748b;">${item?.seriesName}：` +
-        `<span style="color:#4e9bf0;font-weight:600;">${item?.value}k</span></div>`
-      )
-    },
-  },
-  xAxis: {
-    type: 'category',
-    // 贴边（首尾点落在绘图区两端）
-    boundaryGap: false,
-    data: expSalary.value.map(item => item.experience),
-    axisLine: { lineStyle: { color: '#e5e7eb' } },
-    axisTick: { show: false },
-    axisLabel: {
-      color: '#64748b',
-      fontSize: 11,
-      // 只有 4 个档位，强制全部展示（默认值可能因重叠自动隐藏）
-      interval: 0,
-    },
-  },
-  yAxis: {
-    type: 'value',
-    min: 0,
-    max: 25,
-    interval: 5,
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: '#94a3b8', fontSize: 11, formatter: '{value}k' },
-    splitLine: { lineStyle: { color: '#eef2f6' } },
-  },
-  series: [
-    {
-      name: '平均薪资',
-      type: 'line',
-      color: '#4e9bf0',
-      symbol: 'circle',
-      symbolSize: 9,
-      lineStyle: { width: 3 },
-      itemStyle: { color: '#4e9bf0' },
-      // 线下面积：自上而下由深到浅的蓝色渐变
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0,
-          y: 0,
-          x2: 0,
-          y2: 1,
-          colorStops: [
-            { offset: 0, color: 'rgba(78, 155, 240, 0.35)' },
-            { offset: 1, color: 'rgba(78, 155, 240, 0.06)' },
-          ],
-        },
-      },
-      data: expSalary.value.map(item => item.avgSalary),
-    },
-  ],
-}))
+const userStore = useUserStore()
 
 
 
-/** 岗位数据表格行 */
-interface JobRow {
-  id: number
-  job_name: string
+/** 最近分析条目 */
+interface RecentAnalysis {
+  title: string
   company: string
-  salary_min: number
-  salary_max: number
-  experience: string
-  skill_tags: string[]
+  score: number
 }
 
-interface JobPositions extends JobRow {
-  isDescription: boolean
+/** 底部岗位列表卡片 */
+interface JobListItem {
+  id: number
+  title: string
+  salary: string
+  region: string
+  company: string
+  skillTags: string[]
 }
 
-// 岗位数据列表（静态数据，待接入接口）
-const jobList = ref<JobPositions[]>([])
+const hotKeywords = ['前端开发', 'React', 'AI 应用', '产品经理', '数据分析']
 
-// 分页状态（总数为静态值，待接入接口后由返回结果驱动）
-const jobPagination = reactive({ page: 1, size: 10, total: 0 })
+const directions = ['前端开发', '后端开发', '人工智能', '产品经理', 'UI/UX 设计', '数据分析', '测试工程', '运营']
 
-// 工作描述弹窗：只由「查看详情」按钮触发，点行仍是 AI 智能解读浮层
-const descVisible = ref(false)
-const descJob = ref<JobPositions | null>(null)
-const openJobDescription = (row: JobPositions) => {
-  descJob.value = row
-  descVisible.value = true
-}
+const tabs = ['推荐', '最新', '高匹配', '附近']
+const activeTab = ref('推荐')
 
-// AI 智能解读浮层
-const interpretVisible = ref(false)
-const searchJobData = ref<JobRow>({
-  id: 0,
-  company: '',
-  salary_min: 0,
-  salary_max: 0,
-  job_name: '',
-  experience: '',
-  skill_tags: [],
-})
-// 调整窗口出现位置
-const CARD_HEIGHT = 420 // 卡片高度
-const CARD_WIDTH = 420 // 卡片宽度
-const CARD_GAP = 12 // 卡片间距
+const footerLinks = ['关于我们', '用户协议', '隐私政策', '帮助中心']
 
-// 默认鼠标位置
-const interpretX = ref(0)
-const interpretY = ref(0)
-const searchJobDetail = async (_row: JobRow, _column: unknown, event: MouseEvent) => {
-  // 数据赋值
-  interpretVisible.value = true
-  searchJobData.value = _row
-  console.log(searchJobData.value)
+/** 城市选项（静态，后续接入 /home/city） */
+const cityOptions = ['上海', '北京', '深圳', '杭州']
+const city = ref('上海')
 
-  // 计算鼠标位置
-  interpretX.value =
-    event.clientX + CARD_GAP + CARD_WIDTH > window.innerWidth ? event.clientX - CARD_WIDTH - CARD_GAP : event.clientX + CARD_GAP // 翻到鼠标右侧
-  interpretY.value =
-    event.clientY + CARD_GAP + CARD_HEIGHT > window.innerHeight ? event.clientY - CARD_HEIGHT - CARD_GAP : event.clientY + CARD_GAP // 翻到鼠标下方
-  // 显示浮层
-  interpretVisible.value = true
-}
+/** 搜索框内容与实际生效的筛选词分开：回车/点搜索才生效 */
+const searchText = ref('')
+const keyword = ref('')
 
-//  查询函数
-const handleQuery = () => {
-  console.log('筛选条件:', query)
-  jobPagination.page = 1
-  getJob(query)
-}
-
-// 重置筛选条件
-const handleReset = () => {
-  filterItems.value.forEach((item) => {
-    query[item.prop] = ''
-    // 区间类筛选项还有上限字段，一并清空
-    if (item.endProp) query[item.endProp] = ''
-  })
-  jobPagination.page = 1
-  getJob(query)
-}
-
-// 刷新图表
-const refreshKey = ref(0)
-const handleRefresh = async () => {
-  refreshKey.value++
-  await nextTick()
-}
-
-
-
-// 是否展示问卷弹窗：与个人信息页共用同一个 store，按 IP 判断是否填写过
 const personalInfoStore = usePersonalInfoStore()
-const showSurvey = ref(false)
-const checkSurveyStatus = async () => {
-  const res = await personalInfoStore.fetchPersonal()
-  showSurvey.value = !res
+const router = useRouter()
+
+/** 右侧栏是否有数据：以是否填写过个人信息为准 */
+const sideHasData = computed(() => personalInfoStore.loaded && personalInfoStore.filled)
+
+/** 空态按钮：去填写个人信息 */
+const goPersonalInfo = () => {
+  router.push('/personal-info')
 }
 
+const recentAnalyses: RecentAnalysis[] = [
+  { title: '高级前端工程师', company: '星野科技', score: 86 },
+  { title: '前端开发工程师', company: '云图智能', score: 72 },
+]
 
-// 页面渲染时
+/** 标签最多展示 30 个字符，超出部分用 ... 省略 */
+const MAX_TAG_LENGTH = 30
+const formatTag = (tag: string) =>
+  tag.length > MAX_TAG_LENGTH ? `${tag.slice(0, MAX_TAG_LENGTH - 3)}...` : tag
+
+/** 底部岗位列表：GET /api/home/jobList，每页 9 条，滚动到底部自动加载更多 */
+const JOB_PAGE_SIZE = 9
+
+const jobList = ref<JobListItem[]>([])
+const jobListLoading = ref(false)
+const jobListFinished = ref(false)
+const jobListPage = ref(1)
+const loadMoreRef = ref<HTMLElement | null>(null)
+let jobListObserver: IntersectionObserver | null = null
+
+/** 拉取一页岗位并追加到列表 */
+const fetchJobList = async () => {
+  if (jobListLoading.value || jobListFinished.value) return
+
+  jobListLoading.value = true
+  let success = false
+
+  try {
+    const res = await getJobList({
+      page: jobListPage.value,
+      size: JOB_PAGE_SIZE,
+      city: city.value,
+      experienceMin: '',
+      experienceMax: '',
+      salaryMin: '',
+      salaryMax: '',
+      keyword: '',
+      jobName: '',
+    })
+
+    const list = res.list.map((item) => ({
+      id: item.id,
+      title: item.job_name,
+      salary: `${item.salary_min}–${item.salary_max}K`,
+      // jobList 不返回地区字段，这里用请求时筛选的城市展示
+      region: city.value || '地区不限',
+      company: item.company,
+      skillTags: item.skill_tags ?? [],
+    }))
+
+    jobList.value = [...jobList.value, ...list]
+    jobListPage.value += 1
+
+    // 没有数据或已取满总数，停止后续加载
+    if (!list.length || jobList.value.length >= res.total) jobListFinished.value = true
+    success = true
+  } catch (error) {
+    console.log('获取岗位列表失败：', error)
+  } finally {
+    jobListLoading.value = false
+
+    // 重新观察：首屏不足一屏时，哨兵还在视口内，继续加载下一页
+    if (success) {
+      await nextTick()
+      setupJobListObserver()
+    }
+  }
+}
+
+/** 监听底部哨兵，进入视口（含提前 200px）就加载下一页 */
+const setupJobListObserver = () => {
+  if (jobListFinished.value) {
+    jobListObserver?.disconnect()
+    return
+  }
+  if (!loadMoreRef.value) return
+
+  jobListObserver?.disconnect()
+  jobListObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) fetchJobList()
+    },
+    { rootMargin: '0px 0px 200px 0px' },
+  )
+  jobListObserver.observe(loadMoreRef.value)
+}
+
 onMounted(() => {
-
-  // 按 IP 判断是否需要填写问卷
-  checkSurveyStatus()
-
-  getJob(query)
-  getSalary()
-  getSkills()
-  getJobDistrict()
-  getExpSalary()
-
-  // 获取查询时的数据列表
-  getCity().then(res => {
-    cities.value = res.map(item => {
-      return {
-        label: item.city,
-        value: item.city,
-      }
-    })
-    cities.value.unshift({
-      label: '不限城市',
-      value: '',
-    })
-    // console.log(cities.value)
-  })
-
-  // 获取技术关键词
-  getKeywords().then(res => {
-    keywords.value = res.map(item => {
-      return {
-        label: item.skill,
-        value: item.skill,
-      }
-    })
-    keywords.value.unshift({
-      label: '不限关键词',
-      value: '',
-    })
-    // console.log(keywords.value)
-  })
+  fetchJobList()
+  setupJobListObserver()
+  // 右侧栏数据依赖个人信息，缓存命中时不会重复请求
+  personalInfoStore.fetchPersonal()
 })
 
-//  获取岗位数据
-const getJob = async (query: JobQuery) => {
-  try {
-    const res = await getJobList({ page: jobPagination.page, size: jobPagination.size, ...query })
-    jobList.value = res.list.map(item => ({
-      ...item,
-      // 经验为空时统一显示为「无需经验」
-      experience: item.experience || '无需经验',
-      isDescription: false,
-    }))
-    // 处理岗位数据，将岗位描述和技能区分
-    jobList.value.forEach(item => {
-      item.skill_tags.forEach(tag => {
-        if (tag.length >= 10) {
-          item.isDescription = true
-          return
-        }
-      })
-      if (!item.isDescription) {
-        item.isDescription = false
-      }
-    })
-    jobPagination.total = res.total
-    // console.log(jobList.value)
-  } catch (error) {
-    console.log("获取岗位数据失败：", error)
-  }
+onBeforeUnmount(() => {
+  jobListObserver?.disconnect()
+})
+
+/** 为你推荐：暂时先取 jobList 的前 4 条 */
+const hotJobs = computed(() => jobList.value.slice(0, 4))
+
+/** 按关键词过滤推荐岗位（岗位名称 / 公司 / 技术栈命中即可） */
+const filteredJobs = computed(() => {
+  const text = keyword.value.trim().toLowerCase()
+  if (!text) return hotJobs.value
+  return hotJobs.value.filter((job) =>
+    [job.title, job.company, ...job.skillTags].some((item) => item.toLowerCase().includes(text)),
+  )
+})
+
+/** 执行搜索：把输入框内容落到实际筛选词 */
+const handleSearch = () => {
+  keyword.value = searchText.value.trim()
 }
 
-// 获取薪资分布数据
-const getSalary = async () => {
-  try {
-    const res = await getSalaryRange()
-    salaryData.value = res.reduce((acc, cur) => {
-      acc.push(cur.jobCount)
-      return acc
-    }, [] as number[])
-    // console.log(salaryData.value)
-  } catch (error) {
-    console.log("获取薪资分布数据失败：", error)
-  }
+/** 点击热门搜索：填入搜索框并直接搜索 */
+const pickKeyword = (word: string) => {
+  searchText.value = word
+  keyword.value = word
 }
-
-// 获取技术栈热度
-const getSkills = async () => {
-  try {
-    const res = await getSkillTags()
-    skillTags.value = res.map(item => {
-      return {
-        skillName: item.skill_tag,
-        hotCount: item.hot_count,
-      }
-    })
-    // console.log(skillTags.value)
-  } catch (error) {
-    console.log("获取技术栈热度失败：", error)
-  }
-}
-
-// 获取地方岗位数量数据
-const getJobDistrict = async () => {
-  try {
-    const res = await getDistrict()
-    jobDistrict.value = res.map(item => {
-      return {
-        region: item.area_name,
-        jobRatio: item.job_count,
-      }
-    })
-    // console.log(jobDistrict.value)
-  } catch (error) {
-    console.log("获取地方岗位数量数据失败：", error)
-  }
-}
-
-// 工作经验与平均薪资
-const getExpSalary = async () => {
-  try {
-    const res = await getExperienceSalary()
-    expSalary.value = res.map(item => {
-      return {
-        experience: item.experience,
-        avgSalary: item.avg_salary,
-      }
-    })
-    // console.log(expSalary.value)
-  } catch (error) {
-    console.log("获取工作经验对应平均薪资数据失败：", error)
-  }
-}
-
-
-
-// 页码或每页条数变化（换页）时重新请求
-watch(() => [jobPagination.page, jobPagination.size], () => {
-  getJob(query)
-},
-)
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .home {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px;
+  --jv-primary: #007c77;
+  --jv-primary-soft: #e8f7f4;
+  --jv-ink: #17252b;
+  --jv-text: #3d4b54;
+  --jv-muted: #65747c;
+  --jv-faint: #8a979e;
+  --jv-border: #e2ebe9;
+  --jv-line: #edf2f2;
+
+  min-height: 100%;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--jv-ink);
+  background: #f4f8f7;
+
+  // 内容区统一定宽：1280 - 左右各 40 = 1200 设计宽度
+  .home__inner {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1280px;
+    margin: 0px auto;
+    padding: 0 40px;
+  }
+
+  @media (max-width: 1023.98px) {
+    .home__inner {
+      padding: 0 24px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .home__inner {
+      padding: 0 16px;
+    }
+  }
 }
 
-.filter {
-  padding: 10px 20px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow:
-    0 1px 3px 0 rgba(15, 23, 42, 0.03),
-    0 1px 2px 0 rgba(15, 23, 42, 0.04);
+// ---------- 首屏 ----------
+.hero {
+  background: #e8f6f2;
+
+  .hero__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 384px;
+    gap: 32px;
+    padding-top: 48px;
+    padding-bottom: 40px;
+  }
+
+  .hero__title {
+    margin: 0;
+    font-size: clamp(36px, 3.75vw, 54px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -2.2px;
+    color: var(--jv-ink);
+  }
+
+  .hero__desc {
+    margin: 18px 0 0;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #4f6068;
+  }
+
+  .hero__hot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px;
+    margin-top: 16px;
+    font-size: 12.5px;
+
+    .hero__hot-label {
+      font-size: 11.5px;
+      color: var(--jv-muted);
+    }
+
+    .hero__hot-item {
+      font-size: 12.5px;
+      font-weight: 400;
+
+      --el-link-text-color: var(--jv-text);
+      --el-link-hover-text-color: var(--jv-primary);
+    }
+  }
+
+  // 热门方向：左侧与上方各一条细线，和设计稿的 L 形分割一致
+  .hero__directions {
+    padding: 28px 0 0 32px;
+    border-top: 1px solid #cbe2dc;
+    border-left: 1px solid #cbe2dc;
+
+    .directions__title {
+      margin: 0 0 16px;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: #5c7772;
+    }
+
+    .directions__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 32px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .directions__item {
+      padding: 12px 0;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--jv-text);
+      border-bottom: 1px solid #d6e9e4;
+
+      &:nth-last-child(-n + 2) {
+        border-bottom: none;
+      }
+    }
+
+    .directions__more {
+      margin-top: 16px;
+      font-size: 12px;
+      font-weight: 600;
+
+      --el-link-text-color: var(--jv-primary);
+      --el-link-hover-text-color: #006b66;
+    }
+  }
+
+  @media (max-width: 1199.98px) {
+    .hero__inner {
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 24px;
+    }
+  }
+
+  @media (max-width: 1023.98px) {
+    .hero__inner {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+      padding-top: 36px;
+      padding-bottom: 32px;
+    }
+
+    .hero__directions {
+      padding: 24px 0 0;
+      margin-top: 28px;
+      border-left: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .hero__title {
+      letter-spacing: -1.2px;
+    }
+
+    .hero__hot {
+      gap: 12px;
+    }
+  }
 }
 
-/* 基准（≥1200px）：列顺序与 filterItems 一致（岗位名称/城市/工作经验/薪资/技术关键词 + 按钮组），
-   工作经验列给 1.3fr，比其它筛选项略宽 */
-.filter__grid {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.9fr);
-  gap: 16px;
-  align-items: end;
-}
-
-.filter__item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.filter__label {
-  font-family: 'WenQuanYi Zen Hei', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 12px;
-  line-height: 16px;
-  color: #64748b;
-}
-
-.filter__select {
-  --el-border-color: #e5e7eb;
-  --el-input-text-color: #1f2937;
-  --el-select-input-color: #64748b;
-  --el-select-input-font-size: 16px;
-}
-
-.filter__select :deep(.el-select__wrapper) {
-  min-height: 36px;
-  padding: 0 11px 0 12px;
-  font-size: 14px;
-}
-
-/* 岗位名称搜索框：与下拉保持同一高度与配色 */
-.filter__input {
-  --el-border-color: #e5e7eb;
-  --el-input-text-color: #1f2937;
-  --el-input-placeholder-color: #a8abb2;
-}
-
-.filter__input :deep(.el-input__wrapper) {
-  min-height: 36px;
-  padding: 0 11px 0 12px;
-  font-size: 14px;
-}
-
-/* 区间筛选项（经验年限 / 薪资）：两个等宽数字输入框 + 中间连接符，与下拉保持同一高度 */
-.filter__range {
+// ---------- 搜索 ----------
+.search {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.filter__range-sep {
-  flex-shrink: 0;
-  font-size: 14px;
-  line-height: 36px;
-  color: #94a3b8;
-}
-
-.filter__number {
-  flex: 1;
-  min-width: 0;
-
-  --el-border-color: #e5e7eb;
-  --el-input-text-color: #1f2937;
-  --el-input-placeholder-color: #a8abb2;
-}
-
-.filter__number :deep(.el-input__wrapper) {
-  min-height: 36px;
-  padding: 0 8px;
-  font-size: 14px;
-}
-
-/* 数字输入框的原生上下箭头在窄输入框里很挤，隐藏掉 */
-.filter__number :deep(.el-input__inner) {
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-.filter__number :deep(.el-input__inner::-webkit-outer-spin-button),
-.filter__number :deep(.el-input__inner::-webkit-inner-spin-button) {
-  appearance: none;
-  margin: 0;
-}
-
-.filter__actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  height: 36px;
-}
-
-.filter__query {
-  --el-button-hover-bg-color: #3d74ff;
-}
-
-.filter__actions :deep(.el-button) {
-  height: 36px;
-  padding: 0 16px;
-  width: 120px;
-}
-
-/* el-button 相邻按钮自带 12px margin，避免与容器 gap 叠加 */
-.filter__actions :deep(.el-button + .el-button) {
-  margin-left: 0;
-}
-
-.filter__reset {
-  --el-button-text-color: #1f2937;
-  --el-button-border-color: #e5e7eb;
-  --el-button-hover-text-color: #1f2937;
-  --el-button-hover-border-color: #e5e7eb;
-  --el-button-hover-bg-color: #f9fafb;
-  --el-button-active-text-color: #1f2937;
-  --el-button-active-border-color: #e5e7eb;
-}
-
-/* 图表区：基准（≥1200px）4 列 */
-.charts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-}
-
-/* ECharts 容器撑满卡片图表区（占卡片剩余高度），init 依赖确定尺寸 */
-.charts__canvas {
+  box-sizing: border-box;
   width: 100%;
-  height: 100%;
-}
-
-/* 岗位数据表格 */
-.jobs {
-  padding: 10px 20px;
+  max-width: 744px;
+  height: 60px;
+  margin-top: 22px;
+  padding: 6px 6px 6px 16px;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow:
-    0 1px 3px 0 rgba(15, 23, 42, 0.03),
-    0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  border: 1px solid #cbe0dc;
+  border-radius: 14px;
+
+  // el-select 去边框，融进搜索胶囊
+  .search__city {
+    flex-shrink: 0;
+    width: 104px;
+
+    :deep(.el-select__wrapper) {
+      min-height: 46px;
+      padding: 0;
+      font-size: 14px;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    :deep(.el-select__wrapper.is-focused),
+    :deep(.el-select__wrapper.is-hovering) {
+      box-shadow: none;
+    }
+
+    :deep(.el-select__prefix) {
+      margin-right: 6px;
+      color: var(--jv-muted);
+    }
+
+    :deep(.el-select__placeholder) {
+      color: var(--jv-text);
+    }
+
+    :deep(.el-select__suffix) {
+      color: #7d8d94;
+    }
+  }
+
+  .search__divider {
+    flex-shrink: 0;
+    width: 1px;
+    height: 28px;
+    margin: 0 14px;
+    background: #e3ebec;
+  }
+
+  // el-input 去边框，与胶囊融合
+  .search__input {
+    flex: 1;
+    min-width: 0;
+
+    :deep(.el-input__wrapper) {
+      min-height: 46px;
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    :deep(.el-input__inner) {
+      font-size: 14.5px;
+      color: var(--jv-ink);
+    }
+
+    :deep(.el-input__prefix) {
+      margin-right: 12px;
+      color: var(--jv-muted);
+    }
+
+    :deep(.el-input__inner::placeholder) {
+      color: var(--jv-faint);
+    }
+  }
+
+  .search__btn {
+    flex-shrink: 0;
+    width: 112px;
+    height: 48px;
+    margin-left: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+
+    --el-button-text-color: #ffffff;
+    --el-button-bg-color: var(--jv-primary);
+    --el-button-border-color: var(--jv-primary);
+    --el-button-hover-text-color: #ffffff;
+    --el-button-hover-bg-color: #006b66;
+    --el-button-hover-border-color: #006b66;
+    --el-button-active-text-color: #ffffff;
+    --el-button-active-bg-color: #00605c;
+    --el-button-active-border-color: #00605c;
+  }
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px;
+    row-gap: 8px;
+
+    .search__city {
+      width: 92px;
+
+      :deep(.el-select__wrapper) {
+        min-height: 36px;
+      }
+    }
+
+    .search__input {
+      :deep(.el-input__wrapper) {
+        min-height: 36px;
+      }
+    }
+
+    .search__divider {
+      height: 20px;
+      margin: 0 8px;
+    }
+
+    .search__btn {
+      flex-basis: 100%;
+      width: 100%;
+      height: 40px;
+      margin-left: 0;
+    }
+  }
 }
 
-.jobs__head {
+// ---------- 推荐 ----------
+.recommend {
+  padding-top: 46px;
+  margin-top: 18px !important;
+
+  .recommend__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .recommend__title {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+  }
+
+  .recommend__desc {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    color: var(--jv-muted);
+  }
+
+  .recommend__edit {
+    height: auto;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 500;
+
+    --el-button-text-color: var(--jv-primary);
+    --el-button-hover-link-text-color: #006b66;
+    --el-button-active-color: #006b66;
+  }
+
+  // el-tabs 只保留标签头，样式对齐设计稿
+  .recommend__tabs {
+    flex-shrink: 0;
+
+    --el-color-primary: var(--jv-primary);
+
+    :deep(.el-tabs__header) {
+      margin: 0;
+    }
+
+    :deep(.el-tabs__nav-wrap::after) {
+      display: none;
+    }
+
+    :deep(.el-tabs__item) {
+      height: auto;
+      padding: 0 0 10px;
+      margin-right: 26px;
+      font-size: 13.5px;
+      font-weight: 400;
+      color: var(--jv-muted);
+    }
+
+    :deep(.el-tabs__item:last-child) {
+      margin-right: 0;
+    }
+
+    :deep(.el-tabs__item:hover) {
+      color: var(--jv-primary);
+    }
+
+    :deep(.el-tabs__item.is-active) {
+      font-weight: 600;
+      color: var(--jv-primary);
+    }
+
+    :deep(.el-tabs__active-bar) {
+      height: 2px;
+      background: var(--jv-primary);
+      border-radius: 1px;
+    }
+
+    :deep(.el-tabs__content) {
+      display: none;
+    }
+  }
+
+  .recommend__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 372px;
+    gap: 48px;
+    margin-top: 28px;
+  }
+
+  @media (max-width: 1199.98px) {
+    .recommend__body {
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 28px;
+    }
+  }
+
+  @media (max-width: 1023.98px) {
+    .recommend__head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .recommend__body {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .recommend__tabs {
+      :deep(.el-tabs__item) {
+        margin-right: 18px;
+      }
+    }
+  }
+}
+
+// ---------- 岗位列表 ----------
+.jobs {
+  overflow: hidden;
+  border-radius: 16px;
+
+  --el-card-border-color: var(--jv-border);
+  --el-card-border-radius: 16px;
+  --el-card-padding: 0;
+
+  :deep(.el-empty) {
+    padding: 40px 0;
+  }
+
+  :deep(.el-empty__description p) {
+    margin: 0;
+    font-size: 13px;
+    color: var(--jv-muted);
+  }
+}
+
+.job {
+  position: relative;
+  padding: 20px 28px;
+  cursor: pointer;
+
+  // 分割线左右留白，不占满整行
+  &::after {
+    position: absolute;
+    right: 28px;
+    bottom: 0;
+    left: 28px;
+    height: 1px;
+    content: '';
+    background: var(--jv-line);
+  }
+
+  &:last-child::after {
+    display: none;
+  }
+
+  &:hover {
+    background: #fbfdfc;
+  }
+
+  .job__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .job__title {
+    margin: 0;
+    font-size: 18.5px;
+    font-weight: 600;
+    letter-spacing: -0.25px;
+    color: var(--jv-ink);
+  }
+
+  .job__salary {
+    flex-shrink: 0;
+    margin: 0;
+    font-size: 17.5px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: var(--jv-primary);
+    white-space: nowrap;
+
+    .job__salary-note {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0;
+      color: #4e8983;
+    }
+  }
+
+  .job__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--jv-muted);
+  }
+
+  .job__match {
+    flex-shrink: 0;
+    height: 23px;
+    padding: 0 10px;
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 6px;
+
+    --el-tag-bg-color: var(--jv-primary-soft);
+    --el-tag-border-color: transparent;
+    --el-tag-text-color: var(--jv-primary);
+  }
+
+  .job__bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 12.5px;
+  }
+
+  .job__company {
+    font-weight: 500;
+    color: var(--jv-text);
+  }
+
+  .job__industry {
+    margin-left: 8px;
+    font-weight: 400;
+    color: var(--jv-faint);
+  }
+
+  .job__contact {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    color: var(--jv-faint);
+  }
+
+  @media (max-width: 1199.98px) {
+    padding: 18px 22px;
+
+    &::after {
+      right: 22px;
+      left: 22px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px;
+
+    &::after {
+      right: 16px;
+      left: 16px;
+    }
+
+    .job__top {
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .job__bottom {
+      flex-wrap: wrap;
+    }
+  }
+}
+
+// ---------- 右侧栏 ----------
+.side {
+  align-self: start;
+  border-radius: 16px;
+
+  --el-card-border-color: var(--jv-border);
+  --el-card-border-radius: 16px;
+  --el-card-padding: 24px 28px;
+
+  .side__section+.side__section {
+    padding-top: 20px;
+    margin-top: 20px;
+    border-top: 1px solid var(--jv-line);
+  }
+
+  .side__label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    color: #78868f;
+  }
+
+  .side__intent-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .side__intent {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+
+    .side__intent-desc {
+      margin: 4px 0 0;
+      font-size: 11.5px;
+      color: var(--jv-muted);
+    }
+  }
+
+  .side__link {
+    flex-shrink: 0;
+    height: auto;
+    padding: 0;
+    font-size: 11.5px;
+    font-weight: 500;
+
+    --el-button-text-color: var(--jv-primary);
+    --el-button-hover-link-text-color: #006b66;
+    --el-button-active-color: #006b66;
+  }
+
+  .side__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .side__subtitle {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  /* 未填写个人信息时的空态：与个人页空态同款渐变 + 模糊光斑 */
+  &.side--empty {
+    position: relative;
+    min-height: 360px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 55%, #ecfeff 100%);
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.65;
+    }
+
+    &::before {
+      top: -60px;
+      left: 12%;
+      width: 220px;
+      height: 220px;
+      background: #a5b4fc;
+    }
+
+    &::after {
+      right: 10%;
+      bottom: -80px;
+      width: 240px;
+      height: 240px;
+      background: #67e8f9;
+    }
+  }
+
+  .side__empty {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 310px;
+  }
+
+  .side__empty-content {
+    padding: 0 8px;
+    text-align: center;
+  }
+
+  .side__empty-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .side__empty-desc {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #64748b;
+  }
+
+  .side__empty-btn {
+    margin-top: 20px;
+    background: #6774fe;
+    border-color: #6774fe;
+
+    &:hover {
+      background: #4f60f9;
+      border-color: #4f60f9;
+    }
+  }
+
+  .side__loading {
+    min-height: 310px;
+  }
+
+  @media (max-width: 1023.98px) {
+    --el-card-padding: 20px 22px;
+  }
+}
+
+.analysis {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 4px;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--jv-line);
+
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .analysis__title {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--jv-ink);
+  }
+
+  .analysis__desc {
+    margin: 4px 0 0;
+    font-size: 10.5px;
+    color: var(--jv-faint);
+  }
+
+  .analysis__score {
+    flex-shrink: 0;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: var(--jv-primary);
+  }
 }
 
-.jobs__title {
+.advice {
+  padding: 2px 0 2px 14px;
+  margin: 12px 0 0;
+  border-left: 2px solid #a8d8d0;
+
+  .advice__title {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  .advice__desc {
+    margin: 2px 0 0;
+    font-size: 11.5px;
+    color: #4f6068;
+  }
+
+  .advice__link {
+    margin-top: 16px;
+  }
+}
+
+// ---------- 底部岗位列表 ----------
+.job-wall {
+  padding-top: 46px;
+  margin-top: 26px !important;
+
+  .job-wall__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .job-wall__title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.6px;
+    color: var(--jv-ink);
+  }
+
+  .job-wall__desc {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--jv-muted);
+  }
+
+  .job-wall__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    margin-top: 20px;
+  }
+
+  .job-wall__footer {
+    display: flex;
+    justify-content: center;
+    min-height: 20px;
+    padding-top: 20px;
+    font-size: 12px;
+    color: var(--jv-muted);
+  }
+
+  @media (max-width: 1023.98px) {
+    .job-wall__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    padding-top: 32px;
+
+    .job-wall__head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .job-wall__grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+  }
+}
+
+.job-card {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  padding: 22px 24px;
+  background: #ffffff;
+  border: 1px solid var(--jv-border);
+  border-radius: 16px;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .job-card__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .job-card__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+    color: var(--jv-ink);
+  }
+
+  .job-card__salary {
+    flex-shrink: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--jv-primary);
+    white-space: nowrap;
+  }
+
+  .job-card__region {
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: var(--jv-muted);
+  }
+
+  .job-card__company {
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--jv-text);
+  }
+
+  .job-card__tags {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: 16px;
+  }
+
+  .job-card__tag {
+    min-width: 5%;
+    max-width: 30%;
+    height: 24px;
+    padding: 0 10px;
+    overflow: hidden;
+    font-size: 11px;
+    border-radius: 6px;
+
+    :deep(.el-tag__content) {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    --el-tag-bg-color: var(--jv-primary-soft);
+    --el-tag-border-color: transparent;
+    --el-tag-text-color: var(--jv-primary);
+  }
+}
+
+// ---------- 页脚 ----------
+.footer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-family: 'WenQuanYi Zen Hei', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 22px;
-  color: #1f2937;
-}
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 18px;
+  padding-bottom: 16px;
+  margin-top: 32px;
+  font-size: 10.5px;
+  color: var(--jv-faint);
+  border-top: 1px solid #dde8e6;
 
-.jobs__title-icon {
-  font-size: 18px;
-  color: #4e9bf0;
-}
-
-.jobs__table {
-  --el-table-border-color: #f1f5f9;
-  --el-table-header-bg-color: #f8fafc;
-  --el-table-header-text-color: #64748b;
-  --el-table-text-color: #1f2937;
-  --el-table-row-hover-bg-color: #f8fafc;
-}
-
-/* 表头不加粗，与设计稿一致（覆盖 Element Plus 默认的 600） */
-.jobs__table :deep(.el-table__header th.el-table__cell) {
-  font-weight: 400;
-}
-
-/* 行高对齐设计稿（约 46px） */
-.jobs__table :deep(.el-table__cell) {
-  padding: 12px 0;
-}
-
-.jobs__tag {
-  --el-tag-bg-color: #eaf3fe;
-  --el-tag-border-color: transparent;
-  --el-tag-text-color: #4e9bf0;
-
-  margin-right: 6px;
-}
-
-.jobs__tag:last-child {
-  margin-right: 0;
-}
-
-.jobs__foot {
-  padding-top: 16px;
-}
-
-/* 中等屏幕：4 列，按钮组换行并靠右 */
-@media (max-width: 1199.98px) {
-  .filter__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .footer__left {
+    display: flex;
+    align-items: center;
+    gap: 28px;
   }
 
-  .filter__actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
+  .footer__links {
+    display: flex;
+    align-items: center;
+    gap: 26px;
   }
 
-  .charts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+  .footer__link {
+    font-size: 10.5px;
 
-/* table 数据中的技能标签tag 增加上下gap */
-.jobs__tag {
-  margin-bottom: 4px;
-}
-
-/* 手机端：单列堆叠，按钮等宽铺满 */
-@media (max-width: 1023.98px) {
-  .home {
-    padding: 12px;
+    --el-link-text-color: #78868f;
+    --el-link-hover-text-color: var(--jv-primary);
   }
 
-  .filter {
-    padding: 16px;
-  }
-
-  .jobs {
-    padding: 16px;
-  }
-
-  /* 手机端分页一行放不下，允许换行 */
-  .jobs__foot :deep(.el-pagination) {
+  @media (max-width: 1023.98px) {
     flex-wrap: wrap;
-    row-gap: 8px;
   }
 
-  .filter__grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
 
-  .charts {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .filter__actions {
-    height: auto;
-  }
-
-  .filter__actions :deep(.el-button) {
-    flex: 1;
+    .footer__left {
+      gap: 16px;
+    }
   }
 }
 </style>

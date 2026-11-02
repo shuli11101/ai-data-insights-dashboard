@@ -1,5 +1,47 @@
 import { request } from '../utils/request'
 
+/** 注册参数 */
+export interface RegisterParams {
+  phone: string
+  code: string
+  password: string
+}
+
+// 注册：手机号 + 验证码 + 密码，成功后返回 token
+export const register = (body: RegisterParams): Promise<{ token: string }> => {
+  return request<{ token: string }>('/auth/register', { method: 'post', data: body })
+}
+
+/** 登录参数 */
+export interface LoginParams {
+  phone: string
+  password: string
+}
+
+// 登录：手机号 + 密码，成功后返回 token
+export const login = (body: LoginParams): Promise<{ token: string }> => {
+  return request<{ token: string }>('/auth/login', { method: 'post', data: body })
+}
+
+/** 当前登录用户的账号信息 */
+export interface UserProfile {
+  id: number
+  phone: string
+  nickname: string
+  avatar: string
+  currentJob: string
+  location: string
+  experience: string
+  reportCount: number
+  averageScore: number
+  favoriteCount: number
+}
+
+// 获取当前登录用户信息（需 Authorization）
+export const getUserProfile = (): Promise<UserProfile> => {
+  return request<UserProfile>('/user/profile')
+}
+
 interface JobPosition {
   id: number
   job_name: string
