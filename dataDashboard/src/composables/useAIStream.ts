@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { streamAI } from '@/api/ai'
-import type { AiScene } from '@/api/ai'
+import type { AiMessage, AiScene } from '@/api/ai'
 import { parseSections, sectionText } from '@/utils/aiText'
 import type { AISection } from '@/utils/aiText'
 
@@ -9,8 +9,15 @@ const REFUSE_TITLE = '无法分析'
 
 export interface AIStreamOptions {
   scene: AiScene
-  input: string
+  /** 单轮输入（与 messages 二选一） */
+  input?: string
+  /** 多轮对话消息（scene=chat），服务端据此携带完整上下文 */
+  messages?: AiMessage[]
   context?: string
+  /** 继续已有的会话时传入，缺省由后端新建 */
+  conversationId?: string
+  /** 后端回传会话 ID 时触发 */
+  onConversationId?: (conversationId: string) => void
 }
 
 /**
@@ -36,9 +43,11 @@ export function useAIStream() {
   const hasResult = computed(() => sections.value.some((section) => !isRefuseTitle(section.title)))
 
   /** 发起一次流式分析；重复调用会先中止上一次请求 */
-  const start = async ({ scene, input, context }: AIStreamOptions) => {
-    const text = input.trim()
-    if (!text || loading.value) return
+  const start = async ({ scene, input, messages, context, conversationId, onConversationId }: AIStreamOptions) => {
+    // 单轮场景要求非空 input；多轮场景要求至少有一条消息
+    const text = input?.trim() ?? ''
+    if (loading.value) return
+    if (!messages?.length && !text) return
 
     const self = new AbortController()
     controller?.abort()
@@ -52,7 +61,10 @@ export function useAIStream() {
       await streamAI({
         scene,
         input: text,
+        messages,
         context,
+        conversationId,
+        onConversationId,
         signal: self.signal,
         onDelta: (delta) => {
           raw.value += delta

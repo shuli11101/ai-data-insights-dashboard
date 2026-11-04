@@ -59,6 +59,30 @@ export interface PersonalInfo {
   city: string
   currentSalary: number | undefined
   expectedSalary: number | undefined
+  /** 意向岗位名称 */
+  jobTitle?: string
+  /** 求职状态，如「在职，考虑机会」 */
+  jobStatus?: string
+}
+
+/** 可更新的账号资料字段 */
+export interface ProfileUpdate {
+  nickname?: string
+  avatar?: string
+  currentJob?: string
+  location?: string
+}
+
+// 更新账号资料（昵称 / 头像 / 目前职业 / 所在地），返回更新后的完整信息
+export const updateUserProfile = (body: ProfileUpdate): Promise<UserProfile> => {
+  return request<UserProfile>('/user/profile', { method: 'put', data: body })
+}
+
+// 上传头像：返回可直接用于 img src 的地址
+export const uploadAvatar = (file: File): Promise<{ url: string }> => {
+  const data = new FormData()
+  data.append('file', file)
+  return request<{ url: string }>('/user/avatar', { method: 'post', data })
 }
 
 // 获取岗位数据

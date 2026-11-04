@@ -201,11 +201,13 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import { login } from '@/api/server'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
 import { setToken } from '@/utils/token'
 
 const router = useRouter()
 const userStore = useUserStore()
+const personalInfoStore = usePersonalInfoStore()
 
 const phone = ref('')
 const password = ref('')
@@ -237,6 +239,9 @@ const handleLogin = async () => {
     const { token } = await login({ phone: phoneText, password: passwordText })
     // token 存本地，之后所有请求由拦截器自动带 Authorization
     setToken(token)
+
+    // 换了账号：清掉上一个账号的求职意向缓存，再按当前用户重新拉取
+    personalInfoStore.reset()
 
     // 登录成功后拉取用户信息，失败不影响登录
     try {

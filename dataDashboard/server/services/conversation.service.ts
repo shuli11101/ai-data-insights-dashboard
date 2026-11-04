@@ -13,6 +13,7 @@ const CREATE_CONVERSATION = `CREATE TABLE IF NOT EXISTS ai_conversation (
   conversation_id VARCHAR(64) NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
   scene VARCHAR(20) NOT NULL,
+  title VARCHAR(64) DEFAULT NULL,
   client_ip VARCHAR(64) DEFAULT NULL,
   create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -70,27 +71,74 @@ export async function ensureConversationTables(): Promise<void> {
 
   await pool.query(CREATE_CONVERSATION)
   await pool.query(CREATE_MESSAGE)
+
+  // 老表补 title 字段，并用第一条用户消息回填一个标题，避免历史列表继续显示 AI 回复
+  if (!(await hasColumn('ai_conversation', 'title'))) {
+    await pool.query('ALTER TABLE ai_conversation ADD COLUMN title VARCHAR(64) DEFAULT NULL AFTER scene')
+    await pool.query(
+      `UPDATE ai_conversation c
+       JOIN (SELECT conversation_pk, content FROM ai_message WHERE seq = 0) m
+         ON m.conversation_pk = c.id
+       SET c.title = LEFT(m.content, 24)
+       WHERE c.title IS NULL OR c.title = ''`,
+    )
+  }
+}
+
+/** 会话标题的最大长度（按字符计） */
+const TITLE_MAX_LENGTH = 24
+
+/**
+ * 兜底标题：AI 概括失败时，直接取用户第一条消息的首句并截断。
+ * 尽力去掉代码块与 Markdown 标记、压缩空白。
+ */
+export function buildConversationTitle(content: string): string {
+  const text = content
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#*`>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!text) return ''
+
+  // 中英文标点都视为句子结束
+  const sentence = (/^(.+?)[。！？!?；;]/.exec(text)?.[1] ?? text).trim()
+  const chars = [...sentence]
+  return chars.length > TITLE_MAX_LENGTH ? `${chars.slice(0, TITLE_MAX_LENGTH).join('')}…` : sentence
+}
+
+/** 取会话已有标题；会话不存在或标题为空时返回空串（用于避免重复生成） */
+export async function getConversationTitle(conversationId: string, userId: number): Promise<string> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT title FROM ai_conversation WHERE conversation_id = ? AND user_id = ? LIMIT 1',
+    [conversationId, userId],
+  )
+
+  return (rows[0]?.title as string) ?? ''
 }
 
 /**
  * 会话不存在时创建，已存在时刷新场景与来源 IP，返回会话的内部主键。
  * ON DUPLICATE KEY 里用 LAST_INSERT_ID(id) 把已有行的 id 回写给 insertId，
  * 避免多查一次；唯一键是 (user_id, conversation_id)，同 ID 不会串到别人名下。
+ * title 只在首次写入时生效（已有标题不再覆盖），保证历史列表始终显示最初那句总结。
  */
 export async function saveConversation(
   conversationId: string,
   userId: number,
   scene: AIScene,
   clientIp: string,
+  title = '',
 ): Promise<number> {
   const [result] = await pool.query<ResultSetHeader>(
-    `INSERT INTO ai_conversation (conversation_id, user_id, scene, client_ip)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO ai_conversation (conversation_id, user_id, scene, title, client_ip)
+     VALUES (?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        id = LAST_INSERT_ID(id),
        scene = VALUES(scene),
+       title = COALESCE(NULLIF(title, ''), VALUES(title)),
        client_ip = VALUES(client_ip)`,
-    [conversationId, userId, scene, clientIp],
+    [conversationId, userId, scene, title, clientIp],
   )
 
   return Number(result.insertId)
@@ -148,6 +196,8 @@ export interface ConversationSummary {
   conversationId: string
   type: ConversationType
   scene: string
+  /** 由用户第一句话生成的标题，未生成时为空串 */
+  title: string
   updateTime: Date
   messageCount: number
   lastMessage: string
@@ -158,6 +208,7 @@ export async function listConversations(userId: number, limit: number): Promise<
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT c.conversation_id,
             c.scene,
+            c.title,
             c.update_time,
             (SELECT COUNT(*) FROM ai_message m WHERE m.conversation_pk = c.id) AS message_count,
             (SELECT m.content FROM ai_message m
@@ -174,6 +225,7 @@ export async function listConversations(userId: number, limit: number): Promise<
     conversationId: row.conversation_id as string,
     type: getConversationType(row.scene as string),
     scene: row.scene as string,
+    title: (row.title as string) ?? '',
     updateTime: row.update_time as Date,
     messageCount: Number(row.message_count ?? 0),
     lastMessage: (row.last_message as string) ?? '',

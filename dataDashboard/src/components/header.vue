@@ -32,7 +32,8 @@
 
         <span class="header__divider"></span>
 
-        <el-dropdown class="header__user-dropdown" trigger="click" popper-class="header-user-menu"
+        <!-- 已登录：用户下拉菜单 -->
+        <el-dropdown v-if="isLoggedIn" class="header__user-dropdown" trigger="click" popper-class="header-user-menu"
           @command="handleUserCommand">
           <span class="header__user">
             <div v-if="avatar"></div>
@@ -48,6 +49,12 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+
+        <!-- 未登录：登录 / 注册入口 -->
+        <nav v-else class="header__auth">
+          <router-link to="/login" class="header__auth-link">登录</router-link>
+          <router-link to="/register" class="header__auth-link header__auth-link--primary">注册</router-link>
+        </nav>
       </div>
     </div>
 
@@ -57,13 +64,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { ArrowDown, Location, Plus, SwitchButton } from '@element-plus/icons-vue'
 
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
-import { removeToken } from '@/utils/token'
+import { getToken, removeToken } from '@/utils/token'
 
 import AiAnalysisDrawer from './ai-analysis-drawer.vue'
 
@@ -78,11 +86,6 @@ const props = defineProps({
   },
 })
 
-const avatar = ref(props.avatar)
-const nickname = ref(props.nickname)
-
-
-
 /** 顶部导航：由原左侧导航栏迁移而来 */
 const navItems = [
   { label: '首页', path: '/' },
@@ -94,6 +97,14 @@ const navItems = [
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const personalInfoStore = usePersonalInfoStore()
+
+/** 是否已登录：本地有 token 或已缓存用户信息即视为登录 */
+const isLoggedIn = computed(() => Boolean(getToken()) || Boolean(userStore.profile))
+
+/** 优先用外部传入的头像/昵称，没有则回退到本地缓存的用户信息 */
+const avatar = computed(() => props.avatar || userStore.profile?.avatar || '')
+const nickname = computed(() => props.nickname || userStore.profile?.nickname || '用户')
 
 /** 用户下拉菜单：当前只有退出 */
 const handleUserCommand = (command: string | number | object) => {
@@ -101,6 +112,7 @@ const handleUserCommand = (command: string | number | object) => {
 
   removeToken()
   userStore.clearProfile()
+  personalInfoStore.reset()
   router.push('/login')
 }
 
@@ -300,6 +312,62 @@ const changeAnalysisVisible = () => {
 
   .header__chevron {
     color: #7d8d94;
+  }
+
+  // ---------- 未登录：登录 / 注册 ----------
+  .header__auth {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header__auth-link {
+    padding: 0 12px;
+    font-size: 13px;
+    line-height: 30px;
+    color: #3d4b54;
+    text-decoration: none;
+    border-radius: 8px;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+
+    &:hover {
+      color: #007c77;
+    }
+  }
+
+  .header__auth-link--primary {
+    color: #007c77;
+    background: #f2faf8;
+    border: 1px solid #cfe1dd;
+
+    &:hover {
+      color: #007c77;
+      background: #e8f7f4;
+      border-color: #b9dad5;
+    }
+  }
+
+  // ---------- 沉浸模式：作为悬浮层覆盖在页面顶部 ----------
+  &.header--immersive {
+    box-shadow: 0 10px 14px rgba(11, 60, 57, 0.12);
+
+    .header__inner {
+      height: 52px;
+    }
+
+    // 下划线与普通页保持一致贴在导航底部，只保留更宽的宽度
+    :deep(.el-menu-item.is-active::after) {
+      width: 44px;
+    }
+
+    @media (max-width: 640px) {
+      .header__inner {
+        height: 64px;
+      }
+    }
   }
 
   // ---------- 响应式 ----------

@@ -1,722 +1,1638 @@
 <template>
-  <div class="ai-analyse">
-    <!--header部分 个人技能篇评估，JD岗位拆解部分 -->
-    <div class="header_analysis">
-      <div class="header_analysis_content">
-        <div @click="changeAnalysis('1')" class="header_analysis_item"
-          :class="{ header_analysis_item_active: activeTab === '1' }">个人技能评估</div>
-        <div @click="changeAnalysis('2')" class="header_analysis_item"
-          :class="{ header_analysis_item_active: activeTab === '2' }">JD岗位拆解</div>
+  <div class="ai-analyse" :class="{ 'is-guest': isGuest }">
+    <!-- 左侧分析栏 -->
+    <aside class="ai-rail">
+      <div class="ai-rail__brand">
+        <span class="ai-rail__logo">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="10" fill="#007C77" />
+            <path d="M9.3 21.8v-3.9M14 21.8v-7.5M18.7 21.8V9.7" stroke="#DFF7F4" stroke-width="2.4"
+              stroke-linecap="round" />
+            <circle cx="25" cy="8.2" r="2.9" fill="#00BEBD" stroke="#E7F7F5" stroke-width="1.1" />
+          </svg>
+        </span>
+        <span class="ai-rail__name">JobVision</span>
       </div>
-      <div class="header-analysis-line"></div>
+      <p class="ai-rail__sub">AI 分析</p>
 
-      <!-- 文本框 -->
-      <div class="main_analysis">
-        <div class="main_title">
-          <span v-if="activeTab === '1'">技能与求职信息</span>
-          <span v-else>岗位 JD</span>
-        </div>
-        <textarea v-model="content" @keydown.enter.prevent="startAnalysis" spellcheck="false" name="文本框" id="textarea"
-          :placeholder="activeTab === '1' ? '请输入你掌握的技术栈、项目经验、求职意向' : '粘贴岗位招聘JD'"></textarea>
-        <div class="main_button">
-          <el-button type="primary" :disabled="!content.trim() || loading" @click="startAnalysis">
-            <svg class="aiAnalyse-icon" width="16" height="16" viewBox="0 0 18 18" fill="none"
-              xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M8.26275 2.1105C8.32905 1.75553 8.63889 1.4982 9 1.4982C9.36111 1.4982 9.67095 1.75553 9.73725 2.1105L10.5255 6.279C10.6401 6.88551 11.1145 7.35993 11.721 7.4745L15.8895 8.26275C16.2445 8.32905 16.5018 8.63889 16.5018 9C16.5018 9.36111 16.2445 9.67095 15.8895 9.73725L11.721 10.5255C11.1145 10.6401 10.6401 11.1145 10.5255 11.721L9.73725 15.8895C9.67095 16.2445 9.36111 16.5018 9 16.5018C8.63889 16.5018 8.32905 16.2445 8.26275 15.8895L7.4745 11.721C7.35993 11.1145 6.88551 10.6401 6.279 10.5255L2.1105 9.73725C1.75553 9.67095 1.4982 9.36111 1.4982 9C1.4982 8.63889 1.75553 8.32905 2.1105 8.26275L6.279 7.4745C6.88551 7.35993 7.35993 6.88551 7.4745 6.279L8.26275 2.1105"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M15 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                stroke-linejoin="round" />
-              <path d="M16.5 3H13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                stroke-linejoin="round" />
-              <path
-                d="M1.5 15C1.5 15.8279 2.17213 16.5 3 16.5C3.82787 16.5 4.5 15.8279 4.5 15C4.5 14.1721 3.82787 13.5 3 13.5C2.17213 13.5 1.5 14.1721 1.5 15H1.5"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span style="margin-left: 5px;">开始分析</span>
+      <!-- 新对话：清空当前工作区，开始一轮新的分析 / 对话 -->
+      <div v-if="!isGuest" class="ai-rail__new">
+        <el-button class="ai-rail__new-btn" :icon="Plus" @click="startNew">新对话</el-button>
+      </div>
+
+      <div class="ai-rail__section">
+        <p class="ai-rail__label">分析方式</p>
+        <div class="ai-rail__modes">
+          <el-button v-for="mode in modes" :key="mode.value" class="ai-mode"
+            :class="{ 'is-active': activeTab === mode.value }" @click="changeAnalysis(mode.value)">
+            <el-icon class="ai-mode__icon" :size="20">
+              <component :is="mode.icon" />
+            </el-icon>
+            <span class="ai-mode__text">
+              <span class="ai-mode__title">{{ mode.title }}</span>
+              <span class="ai-mode__desc">{{ mode.desc }}</span>
+            </span>
           </el-button>
-          <div class="main_error" v-if="error">{{ error }}</div>
         </div>
       </div>
-    </div>
 
-    <!-- main部分 分析结果 -->
-    <transition name="fade" mode="out-in">
-      <!-- 拒绝提示 -->
-      <div v-if="refused" class="main_refuse">
-        <el-icon :size="20" color="#E6A23C">
-          <Warning />
+      <div class="ai-rail__divider"></div>
+
+      <div class="ai-rail__history-head">
+        <span>对话历史</span>
+        <span v-if="!isGuest" class="ai-rail__history-tools">
+          <el-button v-if="history.length > HISTORY_PREVIEW" class="ai-rail__history-toggle" link
+            @click="historyExpanded = !historyExpanded">{{ historyExpanded ? '收起' : '全部' }}</el-button>
+          <el-button v-if="history.length" class="ai-rail__history-toggle" link @click="toggleManaging">
+            {{ managing ? '完成' : '管理' }}
+          </el-button>
+        </span>
+      </div>
+
+      <!-- 未登录：历史记录锁定，提示登录后同步 -->
+      <div v-if="isGuest" class="ai-rail__history-locked">
+        <p class="ai-rail__history-locked-title">
+          <el-icon :size="13">
+            <Lock />
+          </el-icon>
+          <span>登录后查看历史对话</span>
+        </p>
+        <p class="ai-rail__history-locked-desc">分析记录会同步到你的账号</p>
+      </div>
+
+      <div v-else class="ai-rail__history">
+        <div v-for="item in visibleHistory" :key="item.id" class="history-row">
+          <el-checkbox v-if="managing" class="history-row__check" :model-value="selectedIds.includes(item.id)"
+            @change="toggleSelect(item.id)" />
+          <el-button class="history-item" :class="{ 'is-active': activeHistoryId === item.id }"
+            @click="handleHistoryClick(item)">
+            <span class="history-item__main">
+              <span class="history-item__title">{{ item.title }}</span>
+              <span class="history-item__time">{{ formatHistoryTime(item.time) }}</span>
+            </span>
+            <span class="history-item__meta">{{ modeLabel(item.mode) }}</span>
+          </el-button>
+        </div>
+        <p v-if="!history.length" class="ai-rail__history-empty">还没有分析记录</p>
+      </div>
+
+      <!-- 管理态：批量选择与删除 -->
+      <div v-if="managing" class="ai-rail__manage">
+        <span class="ai-rail__manage-count">已选 {{ selectedIds.length }} 项</span>
+        <span class="ai-rail__manage-actions">
+          <el-button class="ai-rail__history-toggle" link @click="toggleSelectAll">
+            {{ allSelected ? '取消全选' : '全选' }}
+          </el-button>
+          <el-button class="ai-rail__manage-delete" link type="danger" :loading="deleting"
+            :disabled="!selectedIds.length" @click="removeSelected">删除</el-button>
+        </span>
+      </div>
+
+      <div v-if="history.length && !managing" class="ai-rail__history-total">
+        <span>全部分析记录</span>
+        <span>{{ history.length }} 份</span>
+      </div>
+
+      <!-- 未登录：底部提示登录后同步 -->
+      <p v-if="isGuest" class="ai-rail__guest-bottom">
+        <el-icon :size="12">
+          <Lock />
         </el-icon>
-        <span>{{ refuseReason }}</span>
-      </div>
-      <div v-else-if="hasResult" class="main_result">
-        <div class="main_result_title">
-          <div>分析结果</div>
-          <div>基于 1,248 条深圳 AI 岗位样本</div>
+        <span>登录后同步对话与分析记录</span>
+      </p>
+    </aside>
+
+    <!-- 右侧对话区 -->
+    <section class="ai-main" :class="{ 'is-report': isSingle && showContent }">
+      <div class="ai-chat">
+        <!-- 窄屏隐藏左侧栏后，用胶囊按钮切换分析方式 -->
+        <div class="ai-chat__mobile-modes">
+          <el-button v-for="mode in modes" :key="mode.value" class="ai-mobile-mode" round size="small"
+            :class="{ 'is-active': activeTab === mode.value }" @click="changeAnalysis(mode.value)">
+            {{ mode.short }}
+          </el-button>
         </div>
-        <template v-if="activeTab === '1'">
-          <div class="main_result_content">
-            <div class="main_result_item" :class="activeTab === '1' ? 'match_rate' : 'job_basic'">
-              <template v-if="activeTab === '1'">
-                <div class="main_result_item_content">
-                  <svg color="#409EFF" width="24" height="24" viewBox="0 0 49 48" fill="none"
-                    xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M7.4573 37C5.7019 33.9605 4.77783 30.5107 4.77783 27C4.77783 15.9543 13.7321 7 24.7778 7C35.8235 7 44.7778 15.9543 44.7778 27C44.7778 30.5107 43.8537 33.9605 42.0983 37"
-                      stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M24.7778 20V30" transform="rotate(30 24.7778 27)" stroke="currentColor" stroke-width="4"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  <span>匹配度评分</span>
-                </div>
-                <div class="main_result_item_progress">
-                  <div class="main_result_item_progress_rate">
-                    <span style="font-size: 32px; font-weight: 600; color:#409EFF;">{{ matchScore }}</span>
-                    <span style="font-size: 18px; color: #64748B;">/100</span>
-                  </div>
-                  <div class="main_result_item_progress_bar">
-                    <el-progress :percentage="matchScore" :show-text="false"></el-progress>
-                  </div>
-                  <div class="main_result_item_progress_text">
-                    <span style="color: #64748B;">超过 {{ abovePercent }}% 的同龄人</span>
-                  </div>
-                </div>
-              </template>
 
-            </div>
-            <div class="main_result_item salary_rate">
-              <div class="main_result_item_content">
-                <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
-                  <path d="M3.982 11.9689V7A3 3 0 0 1 6.982 4H33.397A3 3 0 0 1 36.397 7V11.9889" stroke="currentColor"
-                    stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-                  <path
-                    d="M4 14C4 12.8954 4.89543 12 6 12H42C43.1046 12 44 12.8954 44 14V42C44 43.1046 43.1046 44 42 44H6C4.89543 44 4 43.1046 4 42V14Z"
-                    fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-                  <path d="M35.25 33H44V23H35.25C32.3505 23 30 25.2386 30 28C30 30.7614 32.3505 33 35.25 33Z"
-                    fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-                  <path d="M44 16.5V40.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-                </svg>
-                <span>薪资预估</span>
-              </div>
-              <div class="main_result_item_progress">
-                <div class="main_result_item_progress_region">
-                  <span style="font-size: 27px;font-weight: 600; color: #409EFF; padding-bottom: 10px;">{{ salaryRange
-                  }}</span>
-                  <span class="text" style=" padding-bottom: 8px;">{{ targetJob }}</span>
-                  <span class="text">市场中位数 {{ salaryMedian }}</span>
-                </div>
-              </div>
-            </div>
+        <div ref="scrollEl" class="ai-chat__body" :class="{ 'is-empty': !showContent }">
+          <!-- 空状态 -->
+          <div v-if="!showContent" class="ai-welcome">
+            <span class="ai-welcome__mark">
+              <svg width="46" height="46" viewBox="0 0 46 46" fill="none" aria-hidden="true">
+                <rect width="46" height="46" rx="14" fill="#007C77" />
+                <path d="M13 31.5v-5.6M20.5 31.5V20.5M28 31.5V14.5" stroke="#DFF7F4" stroke-width="3.2"
+                  stroke-linecap="round" />
+                <circle cx="36" cy="11.5" r="4.2" fill="#00BEBD" stroke="#E7F7F5" stroke-width="1.2" />
+              </svg>
+            </span>
+            <h2 class="ai-welcome__title">{{ welcomeTitle }}</h2>
+            <p class="ai-welcome__desc">{{ welcomeDesc }}</p>
 
-            <div class="main_result_item key_advantage">
-              <div class="main_result_item_content">
-                <svg color="#67C23A" width="24" height="24" viewBox="0 0 48 48" fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M24 44C29.5228 44 34.5228 41.7614 38.1421 38.1421C41.7614 34.5228 44 29.5228 44 24C44 18.4772 41.7614 13.4772 38.1421 9.85786C34.5228 6.23858 29.5228 4 24 4C18.4772 4 13.4772 6.23858 9.85786 9.85786C6.23858 13.4772 4 18.4772 4 24C4 29.5228 6.23858 34.5228 9.85786 38.1421C13.4772 41.7614 18.4772 44 24 44Z"
-                    fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
-                  <path d="M16 24L22 30L34 18" stroke="currentColor" stroke-width="4" stroke-linecap="round"
-                    stroke-linejoin="round" />
-                </svg>
-                <span>核心优势</span>
-              </div>
-              <div class="main_result_item_progress" style="gap: 18px;">
-                <div class="content" v-for="text in coreAdvantages" :key="text">
-                  <svg color="#67C23A" width="16" height="16" viewBox="0 0 48 48" fill="none"
-                    xmlns="http://www.w3.org/2000/svg">
-                    <path d="M43 11L16.875 37L5 25.1818" stroke="currentColor" stroke-width="4" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                  <span>{{ text }}</span>
-                </div>
-              </div>
+            <div v-if="welcomeExamples.length" class="ai-welcome__examples">
+              <el-button v-for="example in welcomeExamples" :key="example" class="ai-welcome__example" round
+                @click="fillComposer(example)">{{ example }}</el-button>
             </div>
-            <div class="main_result_item skill_gaps">
-              <div class="main_result_item_content">
-                <el-icon :size="24" color="#E6A23C">
-                  <CirclePlus />
-                </el-icon>
-                <span>待补充技能</span>
-              </div>
-              <div class="main_result_item_progress" style="gap: 18px;">
-                <div class="content" v-for="text in skillGaps" :key="text">
-                  <el-icon :size="18" color="#E6A23C">
-                    <Warning />
-                  </el-icon>
-                  <span style="color: #475569;">{{ text }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="main_result_item job_advice">
-              <div class="main_result_item_content">
-                <svg color="#409EFF" width="24" height="24" viewBox="0 0 48 48" fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="4" />
-                  <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="4" />
-                  <circle cx="24" cy="24" r="5" stroke="currentColor" stroke-width="4" />
-                </svg>
-                <span>求职建议</span>
-              </div>
-              <div class="main_result_item_progress" style="gap: 18px;">
-                <div class="content" v-for="(text, index) in jobAdvice" :key="text">
-                  <div class="circle">
-                    {{ index + 1 }}
-                  </div>
-                  <span style="color: #475569;">{{ text }}</span>
-                </div>
-              </div>
-            </div>
+            <p v-else-if="activeTab === '2'" class="ai-welcome__hint">支持粘贴完整 JD 文本，信息越完整，分析越准确。</p>
           </div>
-        </template>
-        <template v-else>
-          <div class="main_result_content jd_content">
-            <div class="main_result_item job_basic">
-              <div class="main_result_item_content">
-                <el-icon :size="24" color="#409EFF">
-                  <Document />
-                </el-icon>
-                <span>岗位基本信息</span>
-              </div>
-              <div class="main_result_item_progress">
-                <div class="basic_info" v-for="field in jdBasicInfo" :key="field.label">
-                  <span class="basic_info_label">{{ field.label }}</span>
-                  <span class="basic_info_value">{{ field.value }}</span>
+
+          <!-- 技术栈分析 / JD 拆解：结果直接以报告卡片展示 -->
+          <AnalysisReport v-else-if="isSingle" :mode="activeTab" :sections="sections" :loading="loading"
+            :refused="refused" :refuse-reason="refuseReason" :error="error" @restart="restartAnalysis" />
+
+          <!-- AI 对话模式：多轮消息列表 -->
+          <div v-for="(message, index) in chatDisplay" v-else :key="index" class="ai-msg"
+            :class="message.role === 'user' ? 'ai-msg--user' : 'ai-msg--assistant'">
+            <div v-if="message.role === 'user'" class="ai-msg__bubble">{{ message.content }}</div>
+
+            <template v-else>
+              <span class="ai-msg__mark" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                  <rect width="26" height="26" rx="8" fill="#007C77" />
+                  <path d="M7.5 17.8v-3.2M11.5 17.8v-6.2M15.5 17.8V8.2" stroke="#DFF7F4" stroke-width="1.9"
+                    stroke-linecap="round" />
+                  <circle cx="20.4" cy="6.6" r="2.3" fill="#00BEBD" stroke="#E7F7F5" stroke-width="0.8" />
+                </svg>
+              </span>
+
+              <div class="ai-msg__content">
+                <div class="ai-msg__name">
+                  <span>JobVision</span>
+                  <span v-if="message.streaming" class="ai-msg__status">回复中…</span>
                 </div>
-              </div>
-            </div>
-            <div class="main_result_item job_basic">
-              <div class="main_result_item_content">
-                <el-icon :size="24" color="#409EFF">
-                  <Tickets />
-                </el-icon>
-                <span>岗位职责</span>
-              </div>
-              <div class="main_result_item_progress">
-                <div class="basic_info" v-for="duty in jdDuties" :key="duty.label">
-                  <span class="basic_info_label">{{ duty.label }}</span>
-                  <span class="basic_info_value">{{ duty.value }}</span>
+
+                <p v-if="message.content" class="ai-msg__text">{{ message.content }}</p>
+                <div v-else-if="message.streaming" class="ai-typing" aria-label="回复中">
+                  <span></span>
+                  <span></span>
+                  <span></span>
                 </div>
+
+                <p v-if="message.streaming && error" class="ai-msg__notice ai-msg__notice--error">{{ error }}</p>
               </div>
-            </div>
-            <div class="main_result_item job_basic">
-              <div class="main_result_item_content">
-                <el-icon :size="24" color="#409EFF">
-                  <Medal />
-                </el-icon>
-                <span>认知要求</span>
-              </div>
-              <div class="main_result_item_progress">
-                <div class="basic_info" v-for="duty in knowledgeRequirements" :key="duty.label">
-                  <span class="basic_info_label">{{ duty.label }}</span>
-                  <span class="basic_info_value knowledge_value">
-                    <span v-for="item in duty.value" :key="item" class="knowledge_item" :style="tagStyle(item)">{{ item
-                      }}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="main_result_item job_basic" v-if="jdHiddenInfo.length">
-              <div class="main_result_item_content">
-                <el-icon :size="24" color="#409EFF">
-                  <View />
-                </el-icon>
-                <span>隐藏信息</span>
-              </div>
-              <div class="main_result_item_progress">
-                <div class=" hidden_info" v-for="(item, index) in jdHiddenInfo" :key="index">
-                  <span class="hidden_info_label">{{ item.label }}</span>
-                  <span class="hidden_info_value">{{ item.value }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="main_result_item job_basic" v-if="jdInterviewPrep.length">
-              <div class="main_result_item_content">
-                <el-icon :size="24" color="#409EFF">
-                  <ChatDotRound />
-                </el-icon>
-                <span>面试准备方向</span>
-              </div>
-              <div class="main_result_item_progress">
-                <div class="hidden_info" v-for="(item, index) in jdInterviewPrep" :key="index">
-                  <span class="hidden_info_label interview_label">{{ item.label }}</span>
-                  <span class="hidden_info_value">{{ item.value }}</span>
-                </div>
-              </div>
-            </div>
+            </template>
           </div>
-        </template>
+        </div>
+
+        <!-- 输入区：单轮分析出结果后不再显示，需点「重新分析」重新开始 -->
+        <footer v-if="!isSingle || !currentPrompt" class="ai-composer">
+          <div class="ai-composer__box">
+            <el-tooltip content="新对话" placement="top" :show-after="400">
+              <el-button class="ai-composer__plus" :icon="Plus" aria-label="新对话" @click="startNew" />
+            </el-tooltip>
+
+            <el-input ref="inputRef" v-model="content" class="ai-composer__input" type="textarea"
+              :autosize="{ minRows: 1, maxRows: 6 }" resize="none" :placeholder="placeholder"
+              @keydown.enter.exact="handleEnter" />
+
+            <el-button type="primary" class="ai-composer__send" :disabled="!content.trim() || loading"
+              @click="startAnalysis">发送</el-button>
+          </div>
+          <p class="ai-composer__hint">分析结果仅供参考，请以岗位原文为准。</p>
+        </footer>
       </div>
-    </transition>
 
-
+      <!-- 未登录：下半页渐隐遮罩 + 登录引导，同时挡住后面页面的操作 -->
+      <LoginGuide v-if="isGuest" />
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { ChatDotRound, CirclePlus, Document, Medal, Tickets, View, Warning } from '@element-plus/icons-vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { Component } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { InputInstance } from 'element-plus'
+import { ChatDotRound, DataAnalysis, Document, Lock, Plus } from '@element-plus/icons-vue'
+
 import { useAIStream } from '@/composables/useAIStream'
-import { sectionItems, sectionNumber, sectionText } from '@/utils/aiText'
+import type { AiMessage } from '@/api/ai'
+import { deleteConversations, getConversation, listConversations } from '@/api/conversation'
+import { getToken } from '@/utils/token'
 
-// 切换分析类型
-const activeTab = ref('1')
-const { sections, hasResult, loading, error, start, reset, refuseReason, refused } = useAIStream()
+import AnalysisReport from './analysis-report.vue'
+import LoginGuide from './login-guide.vue'
 
-const changeAnalysis = (tab: string) => {
-  if (tab === activeTab.value) return
-  activeTab.value = tab
-  // 两个标签页的输入与结果互不通用，切换时清空
-  reset()
+/** 三种分析方式：1 = 个人技能评估，2 = JD 岗位拆解，3 = AI 对话 */
+type AnalysisMode = '1' | '2' | '3'
+
+interface AnalysisModeItem {
+  value: AnalysisMode
+  title: string
+  short: string
+  desc: string
+  icon: Component
 }
+
+const modes: AnalysisModeItem[] = [
+  { value: '1', title: '个人技能评估', short: '技能评估', desc: '生成技能覆盖报告', icon: DataAnalysis },
+  { value: '2', title: 'JD 岗位拆解', short: 'JD 拆解', desc: '生成岗位匹配报告', icon: Document },
+  { value: '3', title: 'AI 对话', short: 'AI 对话', desc: '多轮聊天，随时追问', icon: ChatDotRound },
+]
+
+/** 当前分析方式 */
+const activeTab = ref<AnalysisMode>('1')
+
+/** 未登录：隐藏新对话与历史，右侧下半页展示登录引导并挡住页面操作 */
+const isGuest = !getToken()
+
+const { sections, hasResult, loading, error, raw, start, stop, reset, refuseReason, refused } = useAIStream()
+
+const modeLabel = (mode: AnalysisMode) => modes.find((item) => item.value === mode)?.title || ''
 
 // 文本框内容
 const content = ref('')
+const inputRef = ref<InputInstance>()
 
-// 开始分析
-const startAnalysis = () => {
-  start({
-    scene: activeTab.value === '1' ? 'skill' : 'jd',
-    input: content.value,
-  })
+// 当前这一轮分析的用户提问；为空表示还没有开始对话
+const currentPrompt = ref('')
+
+// AI 对话模式下的多轮消息（user / assistant 交替），其余模式不使用
+const chatMessages = ref<AiMessage[]>([])
+
+/** AI 对话模式的渲染条目：历史消息 + 正在生成中的回复 */
+interface ChatDisplayItem {
+  role: 'user' | 'assistant'
+  content: string
+  /** true 表示这是正在流式输出的回复 */
+  streaming?: boolean
 }
 
-// 进度条与百分比不允许超过 100
-const clampPercent = (value: number) => Math.min(100, Math.max(0, value))
-
-// 分析结果（由 AI 流式输出解析而来）
-const matchScore = computed(() => clampPercent(sectionNumber(sections.value, '匹配度评分')))
-const abovePercent = computed(() => clampPercent(sectionNumber(sections.value, '超越比例')))
-const salaryRange = computed(() => sectionText(sections.value, '薪资预估'))
-const targetJob = computed(() => sectionText(sections.value, '目标岗位'))
-const salaryMedian = computed(() => sectionText(sections.value, '市场中位数'))
-const coreAdvantages = computed(() => sectionItems(sections.value, '核心优势'))
-const skillGaps = computed(() => sectionItems(sections.value, '待补充技能'))
-const jobAdvice = computed(() => sectionItems(sections.value, '求职建议'))
-
-// JD 岗位基本信息：固定 4 个字段，从「岗位基本信息」小节按「字段名：值」拆出
-const JD_BASIC_FIELDS = ['职位名称', '所属部门', '工作地点', '薪资范围']
-
-const jdBasicInfo = computed(() =>
-  JD_BASIC_FIELDS.map((label) => {
-    const item = sectionItems(sections.value, '岗位基本信息').find((text) => text.startsWith(label))
-    const value = item?.slice(label.length).replace(/^[：:]\s*/, '').trim()
-    return { label, value: value || '未提及' }
-  }),
-)
-
-//  JD 岗位职责：固定4个字段
-const JD_BASIC_DUTIES_FIELDS = ['日常做什么', '核心产出', '协作对象', '优先级判断']
-
-const jdDuties = computed(() =>
-  JD_BASIC_DUTIES_FIELDS.map((label) => {
-    const item = sectionItems(sections.value, '岗位职责').find((text) => text.startsWith(label))
-    const value = item?.slice(label.length).replace(/^[：:]\s*/, '').trim()
-    return { label, value: value || '未提及' }
-  }),
-)
-
-// 认知要求：固定 2 个字段，从「认知要求」小节按「字段名：值」拆出
-const KNOWLEDGE_FIELDS = ['硬性要求', '软性要求']
-
-const knowledgeRequirements = computed(() =>
-  KNOWLEDGE_FIELDS.map((label) => {
-    const item = sectionItems(sections.value, '认知要求').find((text) => text.startsWith(label)) || ''
-    const value = item?.slice(label.length).replace(/^[：:]\s*/, '').trim().split('、') || []
-    console.log('item', item)
-    console.log('value', value)
-    return { label, value: value || '未提及' }
+const chatDisplay = computed<ChatDisplayItem[]>(() => {
+  const list: ChatDisplayItem[] = chatMessages.value.map((message) => ({ ...message }))
+  if (loading.value) {
+    list.push({ role: 'assistant', content: raw.value, streaming: true })
   }
-  ),
+  return list
+})
+
+const hasConversation = computed(() => Boolean(currentPrompt.value) || chatMessages.value.length > 0)
+
+/** 技术栈分析 / JD 拆解为单轮分析，结果以报告卡片展示 */
+const isSingle = computed(() => activeTab.value !== '3')
+
+/** 是否已有内容区（单轮看是否已提交，多轮看是否有消息） */
+const showContent = computed(() => (isSingle.value ? Boolean(currentPrompt.value) : hasConversation.value))
+
+/** 重新分析：清空当前结果，回到输入状态 */
+const restartAnalysis = () => startNew()
+
+// ---------- 对话历史（服务端会话列表） ----------
+interface HistoryItem {
+  /** 会话 ID，同时用于恢复对话与续接下一轮 */
+  id: string
+  mode: AnalysisMode
+  title: string
+  time: string
+  messageCount: number
+}
+
+/** 侧栏默认展示的历史条数，超出后可展开 */
+const HISTORY_PREVIEW = 5
+
+/** 一次拉取的会话条数 */
+const HISTORY_LIMIT = 20
+
+const history = ref<HistoryItem[]>([])
+const historyExpanded = ref(false)
+const activeHistoryId = ref<string | null>(null)
+
+/** 批量管理：是否进入管理模式、已选中的会话 ID、删除请求进行中 */
+const managing = ref(false)
+const selectedIds = ref<string[]>([])
+const deleting = ref(false)
+
+const allSelected = computed(
+  () => history.value.length > 0 && selectedIds.value.length === history.value.length,
 )
 
-// 「维度：内容」类小节（隐藏信息 / 面试准备方向）：按第一个冒号拆成标签与内容，维度名由 AI 决定，不写死
-const splitPairs = (title: string) =>
-  sectionItems(sections.value, title).map((text) => {
-    const match = /^(.+?)[：:]\s*(.*)$/.exec(text.trim())
-    return match ? { label: match[1]!, value: match[2]! } : { label: '', value: text }
+/** 当前会话 ID：后端首帧回传，同一轮对话的后续提问沿用它 */
+const conversationId = ref('')
+
+/** 后端 scene 到页面分析方式的映射：多轮对话统一归到 AI 对话 */
+const sceneToMode = (scene: string): AnalysisMode => {
+  if (scene === 'skill') return '1'
+  if (scene === 'jd') return '2'
+  return '3'
+}
+
+const visibleHistory = computed(() =>
+  historyExpanded.value ? history.value : history.value.slice(0, HISTORY_PREVIEW),
+)
+
+const formatHistoryTime = (time: string | number) => {
+  const date = new Date(time)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const days = Math.round((today - target) / 86400000)
+
+  if (days <= 0) return '今天'
+  if (days === 1) return '昨天'
+  if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}/${date.getDate()}`
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
+}
+
+/** 拉取当前用户最近的会话列表；未登录或接口异常时保持空列表 */
+const loadHistory = async () => {
+  if (!getToken()) return
+
+  try {
+    const list = await listConversations(HISTORY_LIMIT)
+    history.value = list.map((item) => {
+      const mode = sceneToMode(item.scene)
+      // 优先展示服务端按第一句话生成的标题，老数据没有标题时退回最后一条消息
+      const title = item.title || item.lastMessage || modeLabel(mode)
+      return {
+        id: item.conversationId,
+        mode,
+        title: title.replace(/\s+/g, ' ').trim().slice(0, 24),
+        time: item.updateTime,
+        messageCount: item.messageCount,
+      }
+    })
+  } catch {
+    // 未登录 / 网络异常时不影响页面其他功能，静默失败
+  }
+}
+
+/**
+ * 每次发起 / 恢复对话都递增，用来丢弃已经失效的异步结果。
+ * 例如请求进行中切换了分析方式，旧请求结束后不应再写入历史。
+ */
+let requestSeq = 0
+
+/** 发起分析 */
+const startAnalysis = async () => {
+  if (isGuest) return
+
+  const text = content.value.trim()
+  if (!text || loading.value) return
+
+  const seq = ++requestSeq
+  const mode = activeTab.value
+
+  content.value = ''
+  activeHistoryId.value = null
+
+  // AI 对话模式：把新的提问追加进消息列表，整表发给后端保持多轮上下文
+  if (mode === '3') {
+    chatMessages.value.push({ role: 'user', content: text })
+    scrollToBottom(true)
+
+    await start({
+      scene: 'chat',
+      messages: chatMessages.value.map((message) => ({ ...message })),
+      conversationId: conversationId.value || undefined,
+      onConversationId: (id) => {
+        if (seq === requestSeq) conversationId.value = id
+      },
+    })
+
+    // 期间切换了分析方式 / 打开了历史记录 / 离开了页面，本次结果直接丢弃
+    if (seq !== requestSeq) return
+
+    // 失败时移除刚发出的提问并还原输入，方便修改后重试
+    if (error.value) {
+      chatMessages.value.pop()
+      content.value = text
+      return
+    }
+
+    if (!raw.value.trim()) return
+
+    chatMessages.value.push({ role: 'assistant', content: raw.value.trim() })
+    activeHistoryId.value = conversationId.value || null
+    loadHistory()
+    return
+  }
+
+  currentPrompt.value = text
+  scrollToBottom(true)
+
+  await start({
+    scene: mode === '1' ? 'skill' : 'jd',
+    input: text,
+    conversationId: conversationId.value || undefined,
+    onConversationId: (id) => {
+      if (seq === requestSeq) conversationId.value = id
+    },
   })
 
-const jdHiddenInfo = computed(() => splitPairs('隐藏信息'))
-const jdInterviewPrep = computed(() => splitPairs('面试准备方向'))
+  // 期间切换了分析方式 / 打开了历史记录 / 离开了页面，本次结果直接丢弃
+  if (seq !== requestSeq) return
 
-/** 认知要求标签的浅色底配色 */
-const TAG_COLORS: { bg: string; color: string }[] = [
-  { bg: '#EAF3FF', color: '#3D74FF' },
-  { bg: '#EAF7EE', color: '#529B67' },
-  { bg: '#FFF3E6', color: '#C77C2B' },
-  { bg: '#F3EEFF', color: '#7A5AF8' },
-  { bg: '#FFEFEF', color: '#D96A6A' },
-  { bg: '#E8F7F7', color: '#3E9E9E' },
-]
-
-// 按文字内容取色而不是随机数：流式逐字渲染时同一条内容颜色不会跳变
-const tagStyle = (text: string) => {
-  let hash = 0
-  for (let i = 0; i < text.length; i++) {
-    hash = (hash * 31 + text.charCodeAt(i)) % 9973
+  // 失败时把输入还原，方便用户修改后重试
+  if (error.value) {
+    content.value = text
+    return
   }
-  const { bg, color } = TAG_COLORS[hash % TAG_COLORS.length]!
-  return { backgroundColor: bg, color }
+
+  if (!raw.value.trim() || (!hasResult.value && !refused.value)) return
+
+  activeHistoryId.value = conversationId.value || null
+  loadHistory()
 }
+
+/** 切换分析方式：各场景的输入与结果不通用，切换时清空当前对话 */
+const changeAnalysis = (mode: AnalysisMode) => {
+  if (mode === activeTab.value) return
+
+  requestSeq++
+  reset()
+  activeTab.value = mode
+  currentPrompt.value = ''
+  content.value = ''
+  chatMessages.value = []
+  conversationId.value = ''
+  activeHistoryId.value = null
+}
+
+/** 新对话：保留历史记录，只清空当前工作区 */
+const startNew = () => {
+  requestSeq++
+  reset()
+  currentPrompt.value = ''
+  content.value = ''
+  chatMessages.value = []
+  conversationId.value = ''
+  activeHistoryId.value = null
+  focusComposer()
+}
+
+/** 打开一条历史记录：按会话 ID 拉取完整消息后还原 */
+const openHistory = async (item: HistoryItem) => {
+  requestSeq++
+  reset()
+  const seq = requestSeq
+
+  activeTab.value = item.mode
+  content.value = ''
+  currentPrompt.value = ''
+  chatMessages.value = []
+  conversationId.value = item.id
+  activeHistoryId.value = item.id
+
+  try {
+    const detail = await getConversation(item.id)
+    if (seq !== requestSeq) return
+
+    const messages = detail.messages
+      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }))
+
+    if (item.mode === '3') {
+      chatMessages.value = messages
+    } else {
+      // 单轮分析只展示最后一组问答，回答原文重新解析成报告
+      const lastUser = [...messages].reverse().find((message) => message.role === 'user')
+      const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
+      currentPrompt.value = lastUser?.content ?? ''
+      raw.value = lastAssistant?.content ?? ''
+    }
+    scrollToBottom()
+  } catch (err) {
+    if (seq !== requestSeq) return
+    error.value = err instanceof Error ? err.message : '历史记录加载失败'
+  }
+}
+
+const focusComposer = () => {
+  nextTick(() => inputRef.value?.focus())
+}
+
+// ---------- 历史记录批量管理 ----------
+/** 进入 / 退出批量管理模式，切换时清空已选 */
+const toggleManaging = () => {
+  managing.value = !managing.value
+  selectedIds.value = []
+}
+
+const toggleSelect = (id: string) => {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter((item) => item !== id)
+    : [...selectedIds.value, id]
+}
+
+const toggleSelectAll = () => {
+  selectedIds.value = allSelected.value ? [] : history.value.map((item) => item.id)
+}
+
+/** 管理态点击条目是勾选，普通态点击是打开记录 */
+const handleHistoryClick = (item: HistoryItem) => {
+  if (managing.value) {
+    toggleSelect(item.id)
+    return
+  }
+  openHistory(item)
+}
+
+/** 批量删除选中的会话 */
+const removeSelected = async () => {
+  if (!selectedIds.value.length || deleting.value) return
+
+  const ids = [...selectedIds.value]
+  const count = ids.length
+
+  // 删除前二次确认，文案与按钮样式对齐设计稿
+  try {
+    await ElMessageBox.confirm(
+      count > 1 ? '这些对话的记录将从历史列表中移除，且无法恢复' : '由该对话生成的分享链接也将失效',
+      count > 1 ? `删除后，这 ${count} 条对话将不可恢复` : '删除后，该对话将不可恢复',
+      {
+        confirmButtonText: count > 1 ? `删除 ${count} 条` : '删除该对话',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'ai-delete-confirm__ok',
+        customClass: 'ai-delete-confirm',
+        showClose: false,
+        closeOnClickModal: false,
+      },
+    )
+  } catch {
+    // 点了取消或关闭，直接退出
+    return
+  }
+
+  deleting.value = true
+  try {
+    await deleteConversations(ids)
+
+    history.value = history.value.filter((item) => !ids.includes(item.id))
+    selectedIds.value = []
+
+    // 当前打开的会话被删掉时，顺便清空右侧工作区
+    if (ids.includes(conversationId.value)) startNew()
+    if (!history.value.length) managing.value = false
+
+    ElMessage.success(`已删除 ${ids.length} 条记录`)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败，请稍后重试')
+  } finally {
+    deleting.value = false
+  }
+}
+
+/** 点击示例 / 追问标签：填入输入框，由用户确认后发送 */
+const fillComposer = (text: string) => {
+  content.value = text
+  focusComposer()
+}
+
+const handleEnter = (event: KeyboardEvent) => {
+  // 中文输入法确认候选词时也会触发 Enter，此时不能直接发送
+  if (event.isComposing) return
+  event.preventDefault()
+  startAnalysis()
+}
+
+// ---------- 自动滚动 ----------
+const scrollEl = ref<HTMLElement | null>(null)
+
+const isNearBottom = () => {
+  const el = scrollEl.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 120
+}
+
+const scrollToBottom = async (smooth = false) => {
+  await nextTick()
+  const el = scrollEl.value
+  if (!el) return
+  el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+}
+
+// 流式输出时跟随滚动；用户主动往上翻时不打扰
+watch([raw, loading, error], () => {
+  if (isNearBottom()) scrollToBottom()
+})
+
+// ---------- 页面文案 ----------
+const placeholder = computed(() => {
+  if (activeTab.value === '1') return '写下你的技术栈、项目经验和求职意向…'
+  if (activeTab.value === '3') return '随便聊聊，或说说求职、工作上的困扰…'
+  return '粘贴岗位 JD，越完整分析越准确…'
+})
+
+const welcomeTitle = computed(() => {
+  if (activeTab.value === '1') return '先说说你的情况'
+  if (activeTab.value === '3') return '想聊点什么？'
+  return '先粘贴一份岗位 JD'
+})
+
+const welcomeDesc = computed(() => {
+  if (activeTab.value === '1')
+    return '写下你的技术栈、项目经验和求职意向，AI 会给出匹配度、薪资区间和技能补齐建议。'
+  if (activeTab.value === '3')
+    return '求职、工作、生活里的事都可以聊，也可以让 AI 帮你分析分析、出出主意。'
+  return '把岗位描述粘贴到下方输入框，AI 会拆解岗位要求、隐藏信息与面试准备方向。'
+})
+
+const welcomeExamples = computed(() => {
+  if (activeTab.value === '1')
+    return [
+      '3 年前端，Vue + TypeScript，想看看能投什么岗位',
+      '帮我梳理一下我的技术栈短板',
+      '我想转 AI 应用开发，需要补什么',
+    ]
+  if (activeTab.value === '3')
+    return ['最近面试总没结果，帮我分析分析', '想转行又不敢，帮我权衡一下', '简历亮点该怎么提炼']
+  return []
+})
+
+// ---------- 用户信息 ----------
+// 侧栏底部只保留隐私提示，用户信息统一走顶部导航
+
+// 进入页面拉取一次历史会话列表
+onMounted(loadHistory)
+
+// 离开页面时中止未完成的请求
+onBeforeUnmount(() => {
+  requestSeq++
+  stop()
+})
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .ai-analyse {
-  display: flex;
-  flex-direction: column;
-  padding: 30px 60px;
-}
+  --jv-primary: #007c77;
+  --jv-primary-soft: #e8f7f4;
+  --jv-ink: #17252b;
+  --jv-text: #3d4b54;
+  --jv-muted: #65747c;
+  --jv-faint: #8a979e;
+  --jv-border: #e1ebe8;
+  --jv-line: #edf2f2;
 
-.header_analysis {
   display: flex;
-  flex-direction: column;
-  height: 400px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-}
-
-.header_analysis_content {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  height: 62px;
-  padding-left: 23px;
-}
-
-.header_analysis_item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 108px;
   height: 100%;
-  font-size: 18px;
-  color: #64748B;
-  cursor: pointer;
+  min-height: 0;
+  overflow: hidden;
+  background: #ffffff;
+  color: var(--jv-ink);
 }
 
-.header_analysis_item_active {
-  box-sizing: border-box;
-  color: #409EFF;
-  border-bottom: 1px solid #409EFF;
-}
-
-.header-analysis-line {
-  height: 1px;
-  background-color: #E5E7EB;
-}
-
-/* 文本框 */
-.main_title {
-  font-size: 16px;
-  line-height: 24px;
-  color: #64748B;
-  margin-bottom: 10px;
-}
-
-.main_analysis {
+/* ---------- 左侧分析栏 ---------- */
+.ai-rail {
   display: flex;
+  flex: 0 0 264px;
   flex-direction: column;
-  flex: 1;
+  width: 264px;
   min-height: 0;
-  box-sizing: border-box;
-  padding: 20px 50px;
+  overflow: hidden;
+  background: #f4f9f8;
+  border-right: 1px solid var(--jv-border);
 }
 
-#textarea {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  padding: 15px 20px;
-  border-radius: 18px;
-  border-color: #94A3B8;
-  opacity: 0.5;
+.ai-rail__brand {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 26px 28px 0;
+}
+
+.ai-rail__logo {
+  display: flex;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.ai-rail__name {
   font-size: 20px;
-  box-sizing: border-box;
-  resize: none;
+  font-weight: 700;
+  line-height: 26px;
+  letter-spacing: -0.7px;
+  color: var(--jv-ink);
 }
 
-#textarea:focus {
-  outline: none;
-}
-
-/* 开始分析按钮 */
-.main_button {
-  margin-top: 20px;
-}
-
-.main_button :deep(.el-button) {
-  width: 112px;
-  height: 43px;
-  transition: none;
-}
-
-.main_button :deep(.el-button:not(.is-disabled):hover) {
-  background-color: #3d74ff;
-  border-color: #3d74ff;
-}
-
-/* 分析结果部分 */
-.main_result {
-  display: flex;
-  flex-direction: column;
-  margin-top: 16px;
-}
-
-/* 分析报错部分 */
-.main_error {
-  margin: 12px 0 0;
-  font-size: 14px;
-  color: #F56C6C;
-}
-
-/* 淡入淡出效果 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.main_result_title {
-  display: flex;
-  justify-content: space-between;
-  color: #1F2937;
-  font-size: 16px;
-}
-
-/* 分析结果内容：第 1、2 行各 2 个，第 3 行 1 个 */
-.main_result_content {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.main_result_item {
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-}
-
-/* 结果卡片内部滚动条 */
-.main_result_item::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.main_result_item::-webkit-scrollbar-track {
-  /* 上下留白，滑块不顶到卡片圆角 */
-  margin: 4px 0;
-  background: transparent;
-}
-
-.main_result_item::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: #cbd5e1;
-}
-
-.main_result_item::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Firefox 只认这两个标准属性 */
-.main_result_item {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-
-/* 最后一块独占一整行 */
-.main_result_content> :last-child {
-  grid-column: 1 / -1;
-}
-
-.main_result_item_content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 18px;
-  color: #1F2937;
-}
-
-.match_rate,
-.salary_rate {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: 163px;
-}
-
-/* JD 场景的卡片：与技能页同一套卡片视觉，高度随内容自适应 */
-.job_basic {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 163px;
-}
-
-/* JD 前两张卡（岗位基本信息 / 岗位职责）并排，其余各自独占一整行 */
-.jd_content {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.jd_content> :nth-child(n + 3) {
-  grid-column: 1 / -1;
-}
-
-.basic_info {
-  display: flex;
-  gap: 10px;
-  font-size: 15px;
-  line-height: 24px;
-}
-
-.basic_info_label {
-  /* 固定标签列宽，避免 4 字 / 5 字标签导致值左右错位 */
-  flex: 0 0 5em;
-  color: #64748B;
-}
-
-.basic_info_value {
-  color: #1F2937;
-}
-
-/* 认知要求：多条内容同行流式排列，放不下时自动换行 */
-.knowledge_value {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-}
-
-.knowledge_item {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 13px;
+.ai-rail__sub {
+  padding: 4px 28px 0;
+  margin: 0;
+  font-size: 11.5px;
   line-height: 18px;
+  color: var(--jv-muted);
 }
 
-/* 隐藏信息：维度与结论同行，结论过长时在自己那一列换行 */
-.hidden_info {
+/* 侧栏「新对话」按钮：位于分析方式上方 */
+.ai-rail__new {
+  flex-shrink: 0;
+  padding: 18px 16px 0;
+}
+
+.ai-rail__new-btn {
+  width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 9px;
+
+  --el-button-text-color: #007c77;
+  --el-button-bg-color: #ffffff;
+  --el-button-border-color: #cfe1dd;
+  --el-button-hover-text-color: #007c77;
+  --el-button-hover-bg-color: #f3faf8;
+  --el-button-hover-border-color: #bfe3dd;
+  --el-button-active-text-color: #007c77;
+  --el-button-active-bg-color: #e8f7f4;
+  --el-button-active-border-color: #bfe3dd;
+}
+
+.ai-rail__section {
+  flex-shrink: 0;
+  padding: 16px 16px 0;
+}
+
+.ai-rail__label {
+  padding: 0 12px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  color: #78868f;
+}
+
+.ai-rail__modes {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+
+  // el-button 相邻时会加 12px 左边距，纵向列表里会错位，统一清掉
+  .ai-mode+.ai-mode {
+    margin-left: 0;
+  }
+}
+
+.ai-mode {
+  display: flex;
+  width: 100%;
+  height: auto;
+  padding: 11px 18px;
+  font-family: inherit;
+  text-align: left;
+  border: 0;
+  border-radius: 10px;
+  transition: background-color 0.18s ease;
+
+  --el-button-text-color: var(--jv-ink);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-text-color: var(--jv-ink);
+  --el-button-hover-bg-color: rgba(232, 247, 244, 0.7);
+  --el-button-hover-border-color: transparent;
+  --el-button-active-text-color: var(--jv-ink);
+  --el-button-active-bg-color: var(--jv-primary-soft);
+  --el-button-active-border-color: transparent;
+
+  // el-button 默认把插槽内容包一层 span，这里让它变成横向布局
+  :deep(> span) {
+    display: flex;
+    flex: 1;
+    gap: 14px;
+    align-items: flex-start;
+    min-width: 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  &:hover {
+    background: rgba(232, 247, 244, 0.7);
+  }
+
+  &.is-active {
+    --el-button-bg-color: var(--jv-primary-soft);
+    --el-button-hover-bg-color: var(--jv-primary-soft);
+
+    background: var(--jv-primary-soft);
+
+    .ai-mode__icon,
+    .ai-mode__title {
+      color: var(--jv-primary);
+    }
+
+    .ai-mode__desc {
+      color: #4f6068;
+    }
+  }
+}
+
+.ai-mode__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #6d8b86;
+}
+
+.ai-mode__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-mode__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--jv-ink);
+}
+
+.ai-mode__desc {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--jv-muted);
+}
+
+.ai-rail__divider {
+  flex-shrink: 0;
+  height: 1px;
+  margin: 18px 28px 0;
+  background: #e1ebe9;
+}
+
+.ai-rail__history-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: #78868f;
+}
+
+.ai-rail__history-tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ai-rail__history-toggle {
+  height: auto;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+
+  --el-button-text-color: var(--jv-primary);
+  --el-button-hover-text-color: var(--jv-primary);
+  --el-button-hover-link-text-color: var(--jv-primary);
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
+.ai-rail__history {
+  flex: 1;
+  min-height: 0;
+  padding: 0 12px 10px;
+  overflow-y: auto;
+  // 隐藏滚动条，仍可滚动
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 单条历史：管理态左侧多一个复选框 */
+.history-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.history-row__check {
+  flex-shrink: 0;
+  height: auto;
+  margin-right: 0;
+
+  --el-checkbox-checked-bg-color: var(--jv-primary);
+  --el-checkbox-checked-input-border-color: var(--jv-primary);
+  --el-checkbox-input-border-color-hover: var(--jv-primary);
+}
+
+.ai-rail__history-empty {
+  padding: 12px 16px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--jv-faint);
+}
+
+.history-item {
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 9px 14px 9px 16px;
+  font-family: inherit;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  transition: background-color 0.18s ease;
+
+  --el-button-text-color: var(--jv-text);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-text-color: var(--jv-text);
+  --el-button-hover-bg-color: rgba(232, 247, 244, 0.7);
+  --el-button-hover-border-color: transparent;
+  --el-button-active-text-color: var(--jv-text);
+  --el-button-active-bg-color: var(--jv-primary-soft);
+  --el-button-active-border-color: transparent;
+
+  // el-button 的插槽会包一层 span，让它变成纵向布局
+  :deep(> span) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 2px;
+    min-width: 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  &:hover {
+    background: rgba(232, 247, 244, 0.7);
+  }
+
+  &.is-active {
+    --el-button-bg-color: var(--jv-primary-soft);
+    --el-button-hover-bg-color: var(--jv-primary-soft);
+
+    background: var(--jv-primary-soft);
+
+    &::before {
+      position: absolute;
+      top: 10px;
+      bottom: 10px;
+      left: 0;
+      width: 2px;
+      content: '';
+      background: var(--jv-primary);
+      border-radius: 1px;
+    }
+
+    .history-item__title {
+      font-weight: 600;
+      color: var(--jv-ink);
+    }
+  }
+}
+
+.history-item__main {
+  display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.history-item__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--jv-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item__time {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--jv-faint);
+}
+
+.history-item__meta {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--jv-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-rail__history-total {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 28px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--jv-primary);
+  border-top: 1px solid #e1ebe9;
+
+  span:last-child {
+    font-weight: 400;
+    color: var(--jv-faint);
+  }
+}
+
+/* 管理态底栏：已选数量 + 全选 / 删除 */
+.ai-rail__manage {
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 28px;
+  border-top: 1px solid #e1ebe9;
+}
+
+.ai-rail__manage-count {
+  font-size: 11.5px;
+  line-height: 18px;
+  color: var(--jv-muted);
+}
+
+.ai-rail__manage-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ai-rail__manage-delete {
+  height: auto;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ---------- 未登录态 ---------- */
+.ai-rail__history-locked {
+  padding: 14px 24px 0 28px;
+}
+
+.ai-rail__history-locked-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--jv-text);
+}
+
+.ai-rail__history-locked-desc {
+  margin: 4px 0 0 19px;
+  font-size: 10.5px;
+  line-height: 16px;
+  color: var(--jv-faint);
+}
+
+.ai-rail__guest-bottom {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  align-items: center;
+  padding: 14px 28px;
+  margin: auto 0 0;
+  font-size: 10.5px;
+  line-height: 16px;
+  color: #9aa6ac;
+  border-top: 1px solid #e1ebe9;
+}
+
+/* ---------- 右侧对话区 ---------- */
+.ai-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 报告模式：浅灰底衬托白色报告卡片 */
+.ai-main.is-report {
+  background: #f4f8f7;
+}
+
+.ai-main.is-report .ai-chat__body:not(.is-empty) {
+  padding: 24px 0;
+}
+
+/* 未登录：只有顶部导航和登录引导可操作，页面其余部分全部拦截 */
+.ai-analyse.is-guest {
+  .ai-rail,
+  .ai-chat {
+    pointer-events: none;
+    user-select: none;
+  }
+}
+
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 976px;
+  min-height: 0;
+  padding: 0 48px;
+  box-sizing: border-box;
+}
+
+.ai-chat__mobile-modes {
+  display: none;
+}
+
+.ai-chat__body {
+  flex: 1;
+  min-height: 0;
+  padding: 36px 0 8px;
+  overflow-y: auto;
+  // 隐藏滚动条，仍可滚动
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  // 空状态时让欢迎内容整体居中
+  &.is-empty {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+/* ---------- 空状态 ---------- */
+.ai-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 8px;
+  text-align: center;
+}
+
+.ai-welcome__mark {
+  display: flex;
+  width: 46px;
+  height: 46px;
+}
+
+.ai-welcome__title {
+  margin: 20px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 30px;
+  letter-spacing: -0.4px;
+  color: var(--jv-ink);
+}
+
+.ai-welcome__desc {
+  max-width: 520px;
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 22px;
+  color: var(--jv-muted);
+}
+
+.ai-welcome__examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 560px;
+  margin-top: 22px;
+
+  .ai-welcome__example+.ai-welcome__example {
+    margin-left: 0;
+  }
+}
+
+.ai-welcome__example {
+  height: 36px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  border-radius: 999px;
+
+  --el-button-text-color: var(--jv-text);
+  --el-button-bg-color: #ffffff;
+  --el-button-border-color: #d8e2e3;
+  --el-button-hover-text-color: var(--jv-primary);
+  --el-button-hover-bg-color: #f4faf8;
+  --el-button-hover-border-color: #b9dad5;
+  --el-button-active-text-color: var(--jv-primary);
+  --el-button-active-bg-color: #eef7f5;
+  --el-button-active-border-color: #b9dad5;
+}
+
+.ai-welcome__hint {
+  margin: 18px 0 0;
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--jv-faint);
+}
+
+/* ---------- 消息 ---------- */
+.ai-msg {
+  display: flex;
+}
+
+.ai-msg--user {
+  justify-content: flex-end;
+  margin-bottom: 26px;
+}
+
+.ai-msg__bubble {
+  max-width: 560px;
+  // JD 原文可能很长，限制气泡高度并在内部滚动，避免把分析结果顶出屏幕
+  max-height: 168px;
+  padding: 13px 18px;
+  overflow-y: auto;
   font-size: 15px;
   line-height: 24px;
+  color: var(--jv-ink);
+  word-break: break-word;
+  white-space: pre-wrap;
+  background: var(--jv-primary-soft);
+  border-radius: 14px;
+  // 隐藏滚动条，仍可滚动
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.hidden_info_label {
-  flex: 0 0 auto;
-  font-weight: 600;
-  color: #1F2937;
-  border-left: 3px solid #4F7CFF;
-  font-weight: 600;
-  padding-left: 7px;
+.ai-msg--assistant {
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.hidden_info_value {
+.ai-msg__mark {
+  display: flex;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+}
+
+.ai-msg__content {
   flex: 1;
-  color: #64748B;
+  min-width: 0;
 }
 
-/* 面试准备方向部分 */
-.interview_label {
-  border-left: 3px solid #ffbe4f;
-}
-
-.key_advantage,
-.skill_gaps {
+.ai-msg__name {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
-  height: 196px;
-}
-
-.job_advice {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-height: 50px;
-}
-
-.main_result_item_progress {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 100%;
-  gap: 20px;
-}
-
-/* 匹配度评分部分 */
-.main_result_item_progress_rate {
+  gap: 8px;
+  align-items: center;
   margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 18px;
+  color: #78868f;
 }
 
-.main_result_item_progress_text {
-  padding: 6px 0;
+.ai-msg__status {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--jv-faint);
 }
 
-/* 薪资预估部分 */
-.main_result_item_progress_region {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.main_result_item_progress_region .text {
-  font-size: 16px;
-  color: #64748B;
-  letter-spacing: 1.5px;
-}
-
-/* 核心优势部分 */
-.main_result_item_progress .content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* 求职建议部分 */
-.main_result_item_progress .circle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: #409EFF;
-  font-weight: 600;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background-color: #ECF5FF;
-}
-
-/* 无法分析提示：与结果卡片保持同一套视觉 */
-.main_refuse {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  padding: 20px;
-  font-size: 16px;
+/* AI 对话模式的纯文本回复 */
+.ai-msg__text {
+  margin: 0;
+  font-size: 15px;
   line-height: 24px;
-  color: #1F2937;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+  color: var(--jv-ink);
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
-/* 窄屏：单列堆叠（视口 − 240 侧栏 − 120 页面内边距 ≈ 可用宽度，两列需 ≥656px） */
-@media (max-width: 1023.98px) {
-  .main_result_content {
-    grid-template-columns: minmax(0, 1fr);
+.ai-msg__notice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 22px;
+  border-radius: 10px;
+
+  .el-icon {
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+}
+
+.ai-msg__notice--warning {
+  color: #8a5a16;
+  background: #fff8ec;
+
+  .el-icon {
+    color: #d98e2b;
+  }
+}
+
+.ai-msg__notice--error {
+  margin: 10px 0 0;
+  color: #b4413f;
+  background: #fef2f2;
+}
+
+/* 流式输出前的等待动画 */
+.ai-typing {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 8px 0;
+
+  span {
+    width: 6px;
+    height: 6px;
+    background: #b7cfca;
+    border-radius: 50%;
+    animation: ai-typing 1.2s infinite ease-in-out;
+  }
+
+  span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+
+@keyframes ai-typing {
+
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* ---------- 输入区 ---------- */
+.ai-composer {
+  flex-shrink: 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--jv-line);
+}
+
+.ai-composer__box {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #d8e2e3;
+  border-radius: 14px;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &:focus-within {
+    border-color: #9fcfc8;
+    box-shadow: 0 0 0 3px rgba(0, 124, 119, 0.08);
+  }
+}
+
+.ai-composer__plus {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  // 与 42px 高的发送按钮垂直居中对齐
+  margin-bottom: 5px;
+  font-size: 15px;
+  border: 0;
+
+  --el-button-text-color: #65747c;
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-text-color: #007c77;
+  --el-button-hover-bg-color: #f1f7f5;
+  --el-button-hover-border-color: transparent;
+  --el-button-active-text-color: #007c77;
+  --el-button-active-bg-color: #e8f7f4;
+  --el-button-active-border-color: transparent;
+}
+
+.ai-composer__input {
+  flex: 1;
+  min-width: 0;
+
+  --el-input-text-color: #17252b;
+  --el-textarea-placeholder-color: #a1acb3;
+
+  :deep(.el-textarea__inner) {
+    min-height: 42px !important;
+    padding: 9px 0;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 24px;
+    color: var(--jv-ink);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    resize: none;
+  }
+
+  :deep(.el-textarea__inner:hover),
+  :deep(.el-textarea__inner:focus) {
+    box-shadow: none;
+  }
+}
+
+.ai-composer__send {
+  flex-shrink: 0;
+  width: 68px;
+  height: 42px;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 9px;
+
+  --el-button-text-color: #ffffff;
+  --el-button-bg-color: #007c77;
+  --el-button-border-color: #007c77;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-hover-bg-color: #006b67;
+  --el-button-hover-border-color: #006b67;
+  --el-button-active-text-color: #ffffff;
+  --el-button-active-bg-color: #00615e;
+  --el-button-active-border-color: #00615e;
+  --el-button-disabled-text-color: #ffffff;
+  --el-button-disabled-bg-color: #cfe1dd;
+  --el-button-disabled-border-color: #cfe1dd;
+}
+
+.ai-composer__hint {
+  margin: 10px 0 0;
+  padding-bottom: 14px;
+  font-size: 10.5px;
+  line-height: 16px;
+  color: var(--jv-faint);
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1199.98px) {
+  .ai-rail {
+    flex-basis: 240px;
+    width: 240px;
+  }
+
+  .ai-chat {
+    padding: 0 32px;
+  }
+}
+
+@media (max-width: 960px) {
+  .ai-rail {
+    display: none;
+  }
+
+  .ai-chat {
+    max-width: 880px;
+    padding: 0 24px;
+  }
+
+  .ai-chat__mobile-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 32px;
+
+    .ai-mobile-mode+.ai-mobile-mode {
+      margin-left: 0;
+    }
+  }
+
+  .ai-mobile-mode {
+    height: 32px;
+    padding: 0 14px;
+    font-family: inherit;
+    font-size: 12.5px;
+    border-radius: 999px;
+
+    --el-button-text-color: var(--jv-text);
+    --el-button-bg-color: #ffffff;
+    --el-button-border-color: #d8e2e3;
+    --el-button-hover-text-color: var(--jv-primary);
+    --el-button-hover-bg-color: #f4faf8;
+    --el-button-hover-border-color: #b9dad5;
+    --el-button-active-text-color: var(--jv-primary);
+    --el-button-active-bg-color: #eef7f5;
+    --el-button-active-border-color: #b9dad5;
+
+    &.is-active {
+      font-weight: 600;
+
+      --el-button-text-color: var(--jv-primary);
+      --el-button-bg-color: var(--jv-primary-soft);
+      --el-button-border-color: #bfe3dd;
+      --el-button-hover-text-color: var(--jv-primary);
+      --el-button-hover-bg-color: var(--jv-primary-soft);
+      --el-button-hover-border-color: #bfe3dd;
+    }
+  }
+
+  .ai-chat__body {
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .ai-chat {
+    padding: 0 16px;
+  }
+
+  .ai-chat__mobile-modes {
+    padding-top: 24px;
+  }
+
+  .ai-msg__bubble {
+    max-width: 100%;
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .ai-welcome__desc {
+    font-size: 13px;
+  }
+
+  .ai-composer {
+    padding-top: 16px;
+  }
+
+  .ai-composer__box {
+    padding: 10px 12px;
+  }
+}
+</style>
+
+<!-- 删除确认弹窗挂在 body 下，样式不能加 scoped -->
+<style lang="scss">
+.ai-delete-confirm {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  padding: 24px 24px 20px;
+  border-radius: 16px;
+
+  .el-message-box__header {
+    padding: 0;
+  }
+
+  .el-message-box__title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 24px;
+    color: #17252b;
+  }
+
+  .el-message-box__content {
+    padding: 10px 0 0;
+    font-size: 13.5px;
+    line-height: 22px;
+    color: #65747c;
+  }
+
+  .el-message-box__btns {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 24px 0 0;
+
+    .el-button {
+      height: 36px;
+      padding: 0 22px;
+      margin-left: 0;
+      font-size: 13px;
+      border-radius: 999px;
+    }
+  }
+
+  // 危险操作按钮使用设计稿里的红色
+  .ai-delete-confirm__ok {
+    color: #ffffff;
+    background: #f01f1f;
+    border-color: #f01f1f;
+
+    &:hover,
+    &:focus {
+      color: #ffffff;
+      background: #d81b1b;
+      border-color: #d81b1b;
+    }
   }
 }
 </style>

@@ -207,11 +207,13 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import { register } from '@/api/server'
+import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
 import { setToken } from '@/utils/token'
 
 const router = useRouter()
 const userStore = useUserStore()
+const personalInfoStore = usePersonalInfoStore()
 
 const phone = ref('')
 const code = ref('')
@@ -298,6 +300,9 @@ const handleRegister = async () => {
     })
     // token 存本地，之后所有请求由拦截器自动带 Authorization
     setToken(token)
+
+    // 新账号没有历史数据：清掉可能的旧缓存，让首页按当前用户重新拉取
+    personalInfoStore.reset()
 
     // 注册即登录：拉取用户信息并写入本地缓存，失败不影响注册
     try {

@@ -44,10 +44,6 @@
       <div class="recommend__head">
         <div class="recommend__intro">
           <h2 class="recommend__title">热门职业</h2>
-          <p class="recommend__desc">
-            前端开发 · 上海 · 3–5 年 · 20–30K
-            <el-button link class="recommend__edit">修改意向</el-button>
-          </p>
         </div>
 
         <el-tabs v-model="activeTab" class="recommend__tabs">
@@ -75,53 +71,7 @@
         </el-card>
 
         <!-- 右侧：求职意向 / 最近分析 / 求职建议 -->
-        <el-card shadow="never" class="side" :class="{ 'side--empty': !sideHasData }">
-          <template v-if="sideHasData">
-            <section class="side__section">
-              <span class="side__label">求职意向</span>
-              <div class="side__intent-row">
-                <h3 class="side__intent">前端开发工程师</h3>
-                <el-button link class="side__link">编辑</el-button>
-              </div>
-              <p class="side__intent-desc">上海 · 3–5 年 · 20–30K</p>
-            </section>
-
-            <section class="side__section">
-              <div class="side__row">
-                <h4 class="side__subtitle">最近分析</h4>
-                <el-button link class="side__link">全部 7 份</el-button>
-              </div>
-              <div v-for="item in recentAnalyses" :key="item.title + item.company" class="analysis">
-                <div class="analysis__info">
-                  <p class="analysis__title">{{ item.title }}</p>
-                  <p class="analysis__desc">{{ item.company }} · 匹配分析</p>
-                </div>
-                <span class="analysis__score">{{ item.score }}%</span>
-              </div>
-            </section>
-
-            <section class="side__section">
-              <span class="side__label">求职建议</span>
-              <blockquote class="advice">
-                <p class="advice__title">把「熟悉」和「精通」分开看。</p>
-                <p class="advice__desc">程度词，往往决定面试的深度。</p>
-              </blockquote>
-              <el-button link class="side__link advice__link">查看岗位分析</el-button>
-            </section>
-          </template>
-
-          <!-- 未填写个人信息：沿用个人页的空态样式 -->
-          <div v-else-if="personalInfoStore.loaded" class="side__empty">
-            <div class="side__empty-content">
-              <h3 class="side__empty-title">还没有求职数据</h3>
-              <p class="side__empty-desc">填写个人基础信息后，这里会展示求职意向、最近分析和求职建议。</p>
-              <el-button class="side__empty-btn" type="primary" @click="goPersonalInfo">去填写</el-button>
-            </div>
-          </div>
-
-          <!-- 首次请求返回前先占位，避免闪空态 -->
-          <div v-else v-loading="true" class="side__loading"></div>
-        </el-card>
+        <SidePanel />
       </div>
     </section>
 
@@ -168,25 +118,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { Location, Search } from '@element-plus/icons-vue'
 
 import { getJobList } from '@/api/server'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
-import { useUserStore } from '@/stores/user'
 
-const userStore = useUserStore()
-
-
-
-/** 最近分析条目 */
-interface RecentAnalysis {
-  title: string
-  company: string
-  score: number
-}
+import SidePanel from '@/components/home/side-panel.vue'
 
 /** 底部岗位列表卡片 */
 interface JobListItem {
@@ -216,20 +155,16 @@ const searchText = ref('')
 const keyword = ref('')
 
 const personalInfoStore = usePersonalInfoStore()
-const router = useRouter()
 
-/** 右侧栏是否有数据：以是否填写过个人信息为准 */
-const sideHasData = computed(() => personalInfoStore.loaded && personalInfoStore.filled)
-
-/** 空态按钮：去填写个人信息 */
-const goPersonalInfo = () => {
-  router.push('/personal-info')
+/** 获取个人信息并打印，便于调试 */
+const getPersonalInfo = () => {
+  try {
+    const data = personalInfoStore.info
+    console.log('个人信息：', data)
+  } catch (error) {
+    console.log('获取个人信息失败：', error)
+  }
 }
-
-const recentAnalyses: RecentAnalysis[] = [
-  { title: '高级前端工程师', company: '星野科技', score: 86 },
-  { title: '前端开发工程师', company: '云图智能', score: 72 },
-]
 
 /** 标签最多展示 30 个字符，超出部分用 ... 省略 */
 const MAX_TAG_LENGTH = 30
@@ -316,8 +251,7 @@ const setupJobListObserver = () => {
 onMounted(() => {
   fetchJobList()
   setupJobListObserver()
-  // 右侧栏数据依赖个人信息，缓存命中时不会重复请求
-  personalInfoStore.fetchPersonal()
+  getPersonalInfo()
 })
 
 onBeforeUnmount(() => {
@@ -924,213 +858,6 @@ const pickKeyword = (word: string) => {
   }
 }
 
-// ---------- 右侧栏 ----------
-.side {
-  align-self: start;
-  border-radius: 16px;
-
-  --el-card-border-color: var(--jv-border);
-  --el-card-border-radius: 16px;
-  --el-card-padding: 24px 28px;
-
-  .side__section+.side__section {
-    padding-top: 20px;
-    margin-top: 20px;
-    border-top: 1px solid var(--jv-line);
-  }
-
-  .side__label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    color: #78868f;
-  }
-
-  .side__intent-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
-  }
-
-  .side__intent {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: -0.3px;
-
-    .side__intent-desc {
-      margin: 4px 0 0;
-      font-size: 11.5px;
-      color: var(--jv-muted);
-    }
-  }
-
-  .side__link {
-    flex-shrink: 0;
-    height: auto;
-    padding: 0;
-    font-size: 11.5px;
-    font-weight: 500;
-
-    --el-button-text-color: var(--jv-primary);
-    --el-button-hover-link-text-color: #006b66;
-    --el-button-active-color: #006b66;
-  }
-
-  .side__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .side__subtitle {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  /* 未填写个人信息时的空态：与个人页空态同款渐变 + 模糊光斑 */
-  &.side--empty {
-    position: relative;
-    min-height: 360px;
-    overflow: hidden;
-    background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 55%, #ecfeff 100%);
-
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(60px);
-      opacity: 0.65;
-    }
-
-    &::before {
-      top: -60px;
-      left: 12%;
-      width: 220px;
-      height: 220px;
-      background: #a5b4fc;
-    }
-
-    &::after {
-      right: 10%;
-      bottom: -80px;
-      width: 240px;
-      height: 240px;
-      background: #67e8f9;
-    }
-  }
-
-  .side__empty {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 310px;
-  }
-
-  .side__empty-content {
-    padding: 0 8px;
-    text-align: center;
-  }
-
-  .side__empty-title {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f2937;
-  }
-
-  .side__empty-desc {
-    margin: 8px 0 0;
-    font-size: 12.5px;
-    line-height: 1.6;
-    color: #64748b;
-  }
-
-  .side__empty-btn {
-    margin-top: 20px;
-    background: #6774fe;
-    border-color: #6774fe;
-
-    &:hover {
-      background: #4f60f9;
-      border-color: #4f60f9;
-    }
-  }
-
-  .side__loading {
-    min-height: 310px;
-  }
-
-  @media (max-width: 1023.98px) {
-    --el-card-padding: 20px 22px;
-  }
-}
-
-.analysis {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--jv-line);
-
-  &:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-
-  .analysis__title {
-    margin: 0;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--jv-ink);
-  }
-
-  .analysis__desc {
-    margin: 4px 0 0;
-    font-size: 10.5px;
-    color: var(--jv-faint);
-  }
-
-  .analysis__score {
-    flex-shrink: 0;
-    font-size: 19px;
-    font-weight: 700;
-    letter-spacing: -0.4px;
-    color: var(--jv-primary);
-  }
-}
-
-.advice {
-  padding: 2px 0 2px 14px;
-  margin: 12px 0 0;
-  border-left: 2px solid #a8d8d0;
-
-  .advice__title {
-    margin: 0;
-    font-size: 13.5px;
-    font-weight: 600;
-    line-height: 1.5;
-  }
-
-  .advice__desc {
-    margin: 2px 0 0;
-    font-size: 11.5px;
-    color: #4f6068;
-  }
-
-  .advice__link {
-    margin-top: 16px;
-  }
-}
-
 // ---------- 底部岗位列表 ----------
 .job-wall {
   padding-top: 46px;
@@ -1205,6 +932,7 @@ const pickKeyword = (word: string) => {
   background: #ffffff;
   border: 1px solid var(--jv-border);
   border-radius: 16px;
+  cursor: pointer;
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;

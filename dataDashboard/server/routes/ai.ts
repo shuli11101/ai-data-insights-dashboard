@@ -5,13 +5,16 @@ import {
   createChatStream,
   normalizeMessages,
   resolveScene,
+  summarizeConversationTitle,
 } from '../services/ai.service'
 import type { ClientMessage } from '../services/ai.service'
 import {
   appendAssistantMessage,
   appendHistory,
+  buildConversationTitle,
   deleteConversations,
   getConversation,
+  getConversationTitle,
   listConversations,
   saveConversation,
 } from '../services/conversation.service'
@@ -48,6 +51,29 @@ function normalizeConversationId(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const text = value.trim()
   return /^[A-Za-z0-9_-]{1,64}$/.test(text) ? text : null
+}
+
+/**
+ * 会话标题：已有标题直接复用（多轮时 messages[0] 始终是最初那句，不必重复概括）；
+ * 新会话先让 AI 把用户第一句话概括成一句标题，调用失败再退回本地首句截断。
+ */
+async function resolveConversationTitle(
+  conversationId: string,
+  userId: number,
+  firstMessage: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const existing = await getConversationTitle(conversationId, userId)
+  if (existing) return existing
+
+  try {
+    const title = await summarizeConversationTitle(firstMessage, signal)
+    if (title) return title
+  } catch (error) {
+    console.error('[chat] 标题生成失败，改用首句截断:', error)
+  }
+
+  return buildConversationTitle(firstMessage)
 }
 
 // 一次批量删除最多 50 个，避免超长 SQL
@@ -317,14 +343,41 @@ aiRouter.post('/chat', requireAuth, async (req, res, next) => {
     if (!res.writableEnded) controller.abort()
   })
 
+  // 技术栈评估 / JD 拆解：生成失败不写入历史，改为流式成功后再落库；
+  // 其余场景（AI 对话等）保持先存提问，避免上游失败时丢掉整次记录。
+  const saveOnSuccess = scene === 'skill' || scene === 'jd'
+
   // 先落库用户提问：即使上游失败，也能留下这次对话记录。
   // 落库失败不影响本次回答，此时 conversationPk 为 null，结束时不补存回答。
   let conversationPk: number | null = null
-  try {
-    conversationPk = await saveConversation(conversationId, req.userId!, scene, getClientIp(req))
-    await appendHistory(conversationPk, messages)
-  } catch (error) {
-    console.error('[chat] 会话落库失败:', error)
+  // 延迟落库时，标题在请求开始就先算好，避免回答结束后再等一次模型
+  let pendingTitle = ''
+
+  if (saveOnSuccess) {
+    try {
+      pendingTitle = await resolveConversationTitle(
+        conversationId,
+        req.userId!,
+        messages[0]!.content,
+        controller.signal,
+      )
+    } catch (error) {
+      console.error('[chat] 标题生成失败，改用首句截断:', error)
+      pendingTitle = buildConversationTitle(messages[0]!.content)
+    }
+  } else {
+    try {
+      conversationPk = await saveConversation(
+        conversationId,
+        req.userId!,
+        scene,
+        getClientIp(req),
+        await resolveConversationTitle(conversationId, req.userId!, messages[0]!.content, controller.signal),
+      )
+      await appendHistory(conversationPk, messages)
+    } catch (error) {
+      console.error('[chat] 会话落库失败:', error)
+    }
   }
 
   let upstream: ReadableStream<Uint8Array>
@@ -355,13 +408,31 @@ aiRouter.post('/chat', requireAuth, async (req, res, next) => {
 
   // 结束本轮：补存模型回复后下发结束标记
   const finish = async () => {
-    if (conversationPk !== null) {
+    // 技术栈 / JD 拆解：只有拿到模型回答才落库，生成失败或空回答一律不留历史
+    if (saveOnSuccess) {
+      if (answer.trim()) {
+        try {
+          const pk = await saveConversation(
+            conversationId,
+            req.userId!,
+            scene,
+            getClientIp(req),
+            pendingTitle || buildConversationTitle(messages[0]!.content),
+          )
+          await appendHistory(pk, messages)
+          await appendAssistantMessage(pk, answer)
+        } catch (error) {
+          console.error('[chat] 会话落库失败:', error)
+        }
+      }
+    } else if (conversationPk !== null) {
       try {
         await appendAssistantMessage(conversationPk, answer)
       } catch (error) {
         console.error('[chat] AI 回复落库失败:', error)
       }
     }
+
     res.write('data: [DONE]\n\n')
     res.end()
   }

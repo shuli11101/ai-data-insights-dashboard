@@ -28,6 +28,8 @@ const router = createRouter({
           path: '/ai-analyse',
           name: 'ai-analyse',
           component: () => import('@/views/aiAnalyse/index.vue'),
+          // 沉浸模式：隐藏全局导航，鼠标移到页面顶部时再浮出
+          meta: { immersive: true },
         },
         {
           path: '/personal-info',

@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { getPersonal, setPersonalInfo, type PersonalInfo } from '@/api/server'
+import { getToken } from '@/utils/token'
 
 // 个人信息全局状态：服务端按请求 IP 返回该 IP 已提交的信息
 export const usePersonalInfoStore = defineStore('personalInfo', () => {
@@ -27,11 +28,17 @@ export const usePersonalInfoStore = defineStore('personalInfo', () => {
     return lines.length ? `求职者个人信息：\n${lines.join('\n')}` : ''
   })
 
-  // 获取个人信息：已确认过则命中缓存，force 为 true 时强制刷新
-  const fetchPersonal = async (force = false) => {
-    if (loaded.value && !force) return info.value
+  // 获取个人信息：未登录直接返回，已登录则请求接口
+  const fetchPersonal = async (): Promise<PersonalInfo | null> => {
+    if (!getToken()) {
+      info.value = null
+      loaded.value = false
+      return null
+    }
+
     try {
-      info.value = await getPersonal()
+      const res = await getPersonal()
+      info.value = res
     } finally {
       // 请求失败也要标记为已确认，否则页面会一直停在加载态
       loaded.value = true
@@ -39,11 +46,21 @@ export const usePersonalInfoStore = defineStore('personalInfo', () => {
     return info.value
   }
 
+  // 清空状态：登录、切换账号、退出登录时调用
+  const reset = () => {
+    info.value = null
+    loaded.value = false
+  }
+
   // 提交个人信息，并重新拉取一次，保证全局状态与服务端一致
   const submitPersonal = async (payload: PersonalInfo) => {
     await setPersonalInfo(payload)
-    await fetchPersonal(true)
+    await fetchPersonal()
   }
 
-  return { info, loaded, filled, context, fetchPersonal, submitPersonal }
+  // 首次使用时自动拉取一次：页面直接用 store 读取即可，不用各自触发请求
+  // 失败时吞掉异常，避免未处理的 Promise rejection；需要的页面仍可 await fetchPersonal 自行处理
+  fetchPersonal().catch((error) => console.log('获取个人信息失败：', error))
+
+  return { info, loaded, filled, context, fetchPersonal, submitPersonal, reset }
 })

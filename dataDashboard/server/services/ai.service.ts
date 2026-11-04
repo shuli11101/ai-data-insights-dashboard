@@ -281,23 +281,32 @@ export function buildMessages(scene: AIScene, messages: ClientMessage[], context
  * 返回一个可读流，用于逐段接收模型的响应
  */
 
-export async function createChatStream(messages: ChatMessage[], signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
-  const APIkey = process.env.AI_API_KEY?.trim()
-  if (!APIkey) {
+/** 读取上游配置，流式对话与标题生成共用 */
+function resolveUpstream(): { apiKey: string; baseURL: string; model: string } {
+  const apiKey = process.env.AI_API_KEY?.trim()
+  if (!apiKey) {
     throw new Error('AI_API_KEY 环境变量未配置')
   }
 
-  const baseURL = (process.env.AI_BASE_URL || 'https://api.deepseek.com/v1' ).replace ( /\/+$/ , '' )
+  return {
+    apiKey,
+    baseURL: (process.env.AI_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, ''),
+    model: process.env.AI_MODEL?.trim() || 'deepseek-chat',
+  }
+}
+
+export async function createChatStream(messages: ChatMessage[], signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+  const { apiKey, baseURL, model } = resolveUpstream()
 
   // 向AI发送请求
   const response = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${APIkey}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: process.env.AI_MODEL?.trim() || 'deepseek-chat',
+      model,
       messages,
       stream: true,
       temperature: 0.3, // 输出随机性
@@ -311,5 +320,65 @@ export async function createChatStream(messages: ChatMessage[], signal?: AbortSi
   }
 
   return response.body
+}
+
+/** 会话标题的字数上限，与 ai_conversation.title 长度保持余量 */
+const TITLE_MAX_LENGTH = 24
+
+/** 生成标题用的提示词：只概括主题，不回答问题 */
+const TITLE_PROMPT = `你是会话标题生成助手。用户会给你一段话，请用不超过 20 个字的简体中文短语概括它的主题。
+
+要求：
+1. 总结标题，不要引号、书名号、标点、序号，也不要「标题：」这类前缀。
+2. 如果用户第一句话字数小于5字并无意义，可以返回标题为新对话,或结合你的回复进行总结。
+3. 不要回答问题，不要展开解释，不要换行。
+4. 保留关键信息（岗位、技能、城市、诉求等），不要写成「用户咨询」这类空泛表述。`
+
+/** 清洗模型返回的标题：去掉包裹的引号/书名号、Markdown 标记与结尾标点，超长截断 */
+function normalizeTitle(raw: string): string {
+  const text = raw
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/^[#*\s]+/, '')
+    .replace(/["'“”‘’《》「」]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[。！？!?；;，,：:\s]+$/, '')
+    .trim()
+
+  const chars = [...text]
+  return chars.length > TITLE_MAX_LENGTH ? chars.slice(0, TITLE_MAX_LENGTH).join('') : text
+}
+
+/**
+ * 让模型把用户的第一句话概括成会话标题（非流式，一次短请求）。
+ * 失败时抛错，由调用方决定回退方案。
+ */
+export async function summarizeConversationTitle(input: string, signal?: AbortSignal): Promise<string> {
+  const { apiKey, baseURL, model } = resolveUpstream()
+
+  const response = await fetch(`${baseURL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: TITLE_PROMPT },
+        { role: 'user', content: input.slice(0, 500) },
+      ],
+      stream: false,
+      temperature: 0,
+      max_tokens: 32,
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`标题生成失败：${response.status} ${response.statusText}`)
+  }
+
+  const data = (await response.json()) as { choices?: { message?: { content?: string } }[] }
+  return normalizeTitle(data.choices?.[0]?.message?.content ?? '')
 }
 
