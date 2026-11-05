@@ -8,17 +8,14 @@
           <p class="hero__desc">把岗位要求、技能差距和薪资区间，整理成一份能用的判断。</p>
 
           <div class="search">
-            <el-select v-model="city" class="search__city">
-              <template #prefix>
-                <el-icon>
-                  <Location />
-                </el-icon>
-              </template>
-              <el-option v-for="item in cityOptions" :key="item" :label="item" :value="item" />
-            </el-select>
+            <!-- 城市：默认留空不占位，输入时模糊匹配城市名，选中后才作为筛选条件 -->
+            <!-- 宽度交给外层 div 控制：el-autocomplete 自身由 Element Plus 的宽度变量接管，直接写 width 容易被覆盖 -->
+            <div class="search__city">
+              <CityAutocomplete v-model="city" placeholder="城市" @keyup.enter="handleSearch" />
+            </div>
             <span class="search__divider"></span>
             <el-input v-model="searchText" class="search__input" placeholder="搜索职位、公司或技能，例如「前端开发」" :prefix-icon="Search"
-              clearable @keyup.enter="handleSearch" @clear="handleSearch" />
+              clearable @keyup.enter="handleSearch" />
             <el-button type="primary" class="search__btn" @click="handleSearch">搜索</el-button>
           </div>
 
@@ -46,7 +43,7 @@
           <h2 class="recommend__title">热门职业</h2>
         </div>
 
-        <el-tabs v-model="activeTab" class="recommend__tabs">
+        <el-tabs v-model="activeTab" class="recommend__tabs" @mouseenter="stopCarousel" @mouseleave="startCarousel">
           <el-tab-pane v-for="tab in tabs" :key="tab" :label="tab" :name="tab" />
         </el-tabs>
       </div>
@@ -54,7 +51,7 @@
       <div class="recommend__body">
         <!-- 职位列表 -->
         <el-card shadow="never" class="jobs">
-          <article v-for="job in filteredJobs" :key="job.id" class="job">
+          <article v-for="job in hotJobs" :key="job.id" class="job" @click="goJobDetail(job.id)">
             <div class="job__top">
               <h3 class="job__title">{{ job.title }}</h3>
               <p class="job__salary">{{ job.salary }}</p>
@@ -67,11 +64,11 @@
             </div>
           </article>
 
-          <el-empty v-if="!jobListLoading && !filteredJobs.length" description="没有找到匹配的岗位，换个关键词试试。" :image-size="72" />
+          <el-empty v-if="!jobListLoading && !hotJobs.length" description="暂时没有匹配的岗位，换个关键词试试。" :image-size="72" />
         </el-card>
 
-        <!-- 右侧：求职意向 / 最近分析 / 求职建议 -->
-        <SidePanel />
+        <!-- 右侧：随上方标签页切换的市场统计图 -->
+        <SidePanel :tab="activeTab" />
       </div>
     </section>
 
@@ -83,7 +80,7 @@
       </div>
 
       <div v-loading="jobListLoading" class="job-wall__grid">
-        <article v-for="item in jobList" :key="item.id" class="job-card">
+        <article v-for="item in jobList" :key="item.id" class="job-card" @click="goJobDetail(item.id)">
           <div class="job-card__top">
             <h3 class="job-card__title">{{ item.title }}</h3>
             <span class="job-card__salary">{{ item.salary }}</span>
@@ -119,12 +116,15 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
-import { Location, Search } from '@element-plus/icons-vue'
+import { Search } from '@element-plus/icons-vue'
 
 import { getJobList } from '@/api/server'
+import { useCityStore } from '@/stores/city'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 
+import CityAutocomplete from '@/components/city-autocomplete.vue'
 import SidePanel from '@/components/home/side-panel.vue'
 
 /** 底部岗位列表卡片 */
@@ -141,20 +141,32 @@ const hotKeywords = ['前端开发', 'React', 'AI 应用', '产品经理', '数�
 
 const directions = ['前端开发', '后端开发', '人工智能', '产品经理', 'UI/UX 设计', '数据分析', '测试工程', '运营']
 
-const tabs = ['推荐', '最新', '高匹配', '附近']
-const activeTab = ref('推荐')
+const tabs = ['热门技能', '薪资区间', '平均薪资', '城市分布']
+const activeTab = ref('热门技能')
 
 const footerLinks = ['关于我们', '用户协议', '隐私政策', '帮助中心']
 
-/** 城市选项（静态，后续接入 /home/city） */
-const cityOptions = ['上海', '北京', '深圳', '杭州']
-const city = ref('上海')
+/** 当前城市：只跟随顶部城市选择器单向同步，首页内改动不回写 header */
+const cityStore = useCityStore()
+const city = ref(cityStore.current)
 
-/** 搜索框内容与实际生效的筛选词分开：回车/点搜索才生效 */
+watch(
+  () => cityStore.current,
+  (value) => {
+    city.value = value
+  },
+)
+
+/** 搜索框内容：回车或点「搜索」时跳转到职位搜索页 */
 const searchText = ref('')
-const keyword = ref('')
 
 const personalInfoStore = usePersonalInfoStore()
+const router = useRouter()
+
+/** 点击岗位卡片：进入岗位详情页 */
+const goJobDetail = (id: number) => {
+  router.push(`/job/${id}`)
+}
 
 /** 获取个人信息并打印，便于调试 */
 const getPersonalInfo = () => {
@@ -181,6 +193,9 @@ const jobListPage = ref(1)
 const loadMoreRef = ref<HTMLElement | null>(null)
 let jobListObserver: IntersectionObserver | null = null
 
+/** 实际生效的城市：留空表示不按城市筛选 */
+const cityFilter = computed(() => city.value.trim())
+
 /** 拉取一页岗位并追加到列表 */
 const fetchJobList = async () => {
   if (jobListLoading.value || jobListFinished.value) return
@@ -192,7 +207,7 @@ const fetchJobList = async () => {
     const res = await getJobList({
       page: jobListPage.value,
       size: JOB_PAGE_SIZE,
-      city: city.value,
+      city: cityFilter.value,
       experienceMin: '',
       experienceMax: '',
       salaryMin: '',
@@ -206,7 +221,7 @@ const fetchJobList = async () => {
       title: item.job_name,
       salary: `${item.salary_min}–${item.salary_max}K`,
       // jobList 不返回地区字段，这里用请求时筛选的城市展示
-      region: city.value || '地区不限',
+      region: cityFilter.value || '地区不限',
       company: item.company,
       skillTags: item.skill_tags ?? [],
     }))
@@ -248,37 +263,61 @@ const setupJobListObserver = () => {
   jobListObserver.observe(loadMoreRef.value)
 }
 
+/** 标签页自动轮播间隔（毫秒），悬停标签栏时暂停 */
+const CAROUSEL_INTERVAL = 3000
+
+let carouselTimer: ReturnType<typeof setInterval> | null = null
+
+/** 停止轮播：清理定时器，重复调用安全 */
+const stopCarousel = () => {
+  if (carouselTimer) {
+    clearInterval(carouselTimer)
+    carouselTimer = null
+  }
+}
+
+/** 开始轮播：按 tabs 顺序循环切换，到末尾回到第一个 */
+const startCarousel = () => {
+  stopCarousel()
+  carouselTimer = setInterval(() => {
+    const index = tabs.indexOf(activeTab.value)
+    activeTab.value = tabs[(index + 1) % tabs.length]!
+  }, CAROUSEL_INTERVAL)
+}
+
 onMounted(() => {
+  // 初始化时拉取一页岗位
   fetchJobList()
+  // 监听岗位列表滚动到底部自动加载更多
   setupJobListObserver()
+  // 获取个人信息
   getPersonalInfo()
+  // 开始轮播
+  startCarousel()
 })
 
 onBeforeUnmount(() => {
   jobListObserver?.disconnect()
+  stopCarousel()
 })
 
 /** 为你推荐：暂时先取 jobList 的前 4 条 */
 const hotJobs = computed(() => jobList.value.slice(0, 4))
 
-/** 按关键词过滤推荐岗位（岗位名称 / 公司 / 技术栈命中即可） */
-const filteredJobs = computed(() => {
-  const text = keyword.value.trim().toLowerCase()
-  if (!text) return hotJobs.value
-  return hotJobs.value.filter((job) =>
-    [job.title, job.company, ...job.skillTags].some((item) => item.toLowerCase().includes(text)),
-  )
-})
-
-/** 执行搜索：把输入框内容落到实际筛选词 */
+/** 执行搜索：跳转到职位搜索页，带上关键词与城市，列表由该页调用岗位列表接口 */
 const handleSearch = () => {
-  keyword.value = searchText.value.trim()
+  const query: Record<string, string> = {}
+  const text = searchText.value.trim()
+  if (text) query.keyword = text
+  if (cityFilter.value) query.city = cityFilter.value
+
+  router.push({ path: '/jobs', query })
 }
 
 /** 点击热门搜索：填入搜索框并直接搜索 */
 const pickKeyword = (word: string) => {
   searchText.value = word
-  keyword.value = word
+  handleSearch()
 }
 </script>
 
@@ -322,14 +361,41 @@ const pickKeyword = (word: string) => {
 
 // ---------- 首屏 ----------
 .hero {
+  position: relative;
+  overflow: hidden;
   background: #e8f6f2;
+  // 呼吸灯：底色在两种浅青之间缓慢往返
+  animation: hero-breathe 7s ease-in-out infinite;
+
+  // 左上角一团柔光，跟着呼吸节奏明暗变化
+  &::before {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    content: '';
+    background: radial-gradient(ellipse at 28% 18%, rgba(0, 190, 189, 0.18), transparent 62%);
+    opacity: 0.35;
+    animation: hero-glow 7s ease-in-out infinite;
+  }
 
   .hero__inner {
+    position: relative;
+    z-index: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 384px;
     gap: 32px;
     padding-top: 48px;
     padding-bottom: 40px;
+  }
+
+  // 用户偏好减少动效时直接关掉
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+
+    &::before {
+      animation: none;
+    }
   }
 
   .hero__title {
@@ -462,35 +528,40 @@ const pickKeyword = (word: string) => {
   border: 1px solid #cbe0dc;
   border-radius: 14px;
 
-  // el-select 去边框，融进搜索胶囊
+  // 城市输入框去边框，融进搜索胶囊
   .search__city {
     flex-shrink: 0;
+    // 宽度固定在外层，内部 autocomplete 撑满，避免被 Element Plus 的 --el-input-width 覆盖
     width: 104px;
 
-    :deep(.el-select__wrapper) {
+    :deep(.el-autocomplete) {
+      width: 100%;
+    }
+
+    :deep(.el-input__wrapper) {
       min-height: 46px;
       padding: 0;
-      font-size: 14px;
       background: transparent;
       box-shadow: none;
     }
 
-    :deep(.el-select__wrapper.is-focused),
-    :deep(.el-select__wrapper.is-hovering) {
-      box-shadow: none;
+    :deep(.el-input__inner) {
+      font-size: 14px;
+      color: var(--jv-text);
     }
 
-    :deep(.el-select__prefix) {
+    :deep(.el-input__inner::placeholder) {
+      color: var(--jv-faint);
+    }
+
+    :deep(.el-input__prefix) {
       margin-right: 6px;
       color: var(--jv-muted);
     }
 
-    :deep(.el-select__placeholder) {
-      color: var(--jv-text);
-    }
-
-    :deep(.el-select__suffix) {
-      color: #7d8d94;
+    // autocomplete 自带的尾部箭头图标，压缩外边距避免挤占输入区
+    :deep(.el-input__suffix-inner) {
+      margin-left: 2px;
     }
   }
 
@@ -558,7 +629,7 @@ const pickKeyword = (word: string) => {
     .search__city {
       width: 92px;
 
-      :deep(.el-select__wrapper) {
+      :deep(.el-input__wrapper) {
         min-height: 36px;
       }
     }
@@ -674,6 +745,8 @@ const pickKeyword = (word: string) => {
     grid-template-columns: minmax(0, 1fr) 372px;
     gap: 48px;
     margin-top: 28px;
+    // 右侧图表栏较高，岗位卡片保持自身高度，不被拉伸
+    align-items: start;
   }
 
   @media (max-width: 1199.98px) {
@@ -1051,6 +1124,31 @@ const pickKeyword = (word: string) => {
     .footer__left {
       gap: 16px;
     }
+  }
+}
+
+// 首屏呼吸灯：底色 + 柔光两个关键帧同步呼吸
+@keyframes hero-breathe {
+
+  0%,
+  100% {
+    background-color: #e8f6f2;
+  }
+
+  50% {
+    background-color: #ddf3ee;
+  }
+}
+
+@keyframes hero-glow {
+
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 0.85;
   }
 }
 </style>

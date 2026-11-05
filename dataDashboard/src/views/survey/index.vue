@@ -66,13 +66,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
-import { getCity, getKeywords } from '@/api/server'
+import { getKeywords } from '@/api/server'
+import { useCityStore } from '@/stores/city'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 
 const personalInfoStore = usePersonalInfoStore()
+const cityStore = useCityStore()
 
 const visible = ref(true)
 const formRef = ref<FormInstance>()
@@ -102,7 +104,11 @@ const experiences = ref<{ label: string, value: string }[]>([
   }
 ])
 const skillOptions = ref<{ label: string, value: string }[]>([])
-const cities = ref<{ label: string, value: string }[]>([])
+/** 城市下拉：city store 缓存列表 + 置顶的「不限城市」 */
+const cities = computed(() => [
+  { label: '不限城市', value: '不限城市' },
+  ...cityStore.options,
+])
 
 const form = reactive({
   education: '',
@@ -114,25 +120,11 @@ const form = reactive({
 })
 
 onMounted(() => {
-  // 初始化时获取城市列表
-  getCityOptions()
+  // 初始化时获取城市列表（store 内已缓存，重复进入不会重复请求）
+  cityStore.fetchCities()
   // 初始化时获取技术关键词
   getKeywordOptions()
 })
-
-
-
-// 获取城市
-const getCityOptions = async () => {
-  const res = await getCity()
-  cities.value = res.map(item => {
-    return {
-      label: item.city,
-      value: item.city,
-    }
-  })
-  cities.value.unshift({ label: '不限城市', value: '不限城市' })
-}
 
 // 获取技术关键词
 const getKeywordOptions = async () => {

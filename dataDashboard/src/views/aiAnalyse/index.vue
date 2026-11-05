@@ -199,6 +199,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Component } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { InputInstance } from 'element-plus'
 import { ChatDotRound, DataAnalysis, Document, Lock, Plus } from '@element-plus/icons-vue'
@@ -228,8 +229,12 @@ const modes: AnalysisModeItem[] = [
   { value: '3', title: 'AI 对话', short: 'AI 对话', desc: '多轮聊天，随时追问', icon: ChatDotRound },
 ]
 
-/** 当前分析方式 */
-const activeTab = ref<AnalysisMode>('1')
+/** 当前分析方式：支持通过 ?mode=1|2|3 直接进入对应模式，非法值退回技能评估 */
+const route = useRoute()
+const initialMode = route.query.mode
+const activeTab = ref<AnalysisMode>(
+  initialMode === '2' || initialMode === '3' ? initialMode : '1',
+)
 
 /** 未登录：隐藏新对话与历史，右侧下半页展示登录引导并挡住页面操作 */
 const isGuest = !getToken()
@@ -445,6 +450,14 @@ const changeAnalysis = (mode: AnalysisMode) => {
   conversationId.value = ''
   activeHistoryId.value = null
 }
+
+/** 已在页内时，点顶部的「AI 聊天」等入口会只改 query，这里同步切换模式 */
+watch(
+  () => route.query.mode,
+  (mode) => {
+    if (mode === '1' || mode === '2' || mode === '3') changeAnalysis(mode)
+  },
+)
 
 /** 新对话：保留历史记录，只清空当前工作区 */
 const startNew = () => {

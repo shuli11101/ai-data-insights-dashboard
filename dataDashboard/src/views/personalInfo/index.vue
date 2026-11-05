@@ -170,7 +170,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useRouter } from 'vue-router'
 
-import { getCity, getKeywords, updateUserProfile, uploadAvatar } from '@/api/server'
+import { getKeywords, updateUserProfile, uploadAvatar } from '@/api/server'
+import { useCityStore } from '@/stores/city'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
 import { getToken } from '@/utils/token'
@@ -181,6 +182,7 @@ const SKILL_LIMIT = 8
 const router = useRouter()
 const personalInfoStore = usePersonalInfoStore()
 const userStore = useUserStore()
+const cityStore = useCityStore()
 
 /** 未登录时不请求接口，直接展示登录引导 */
 const loggedIn = Boolean(getToken())
@@ -195,7 +197,8 @@ const experiences = [
   { label: '3-5年', value: '3-5' },
   { label: '5年以上', value: '5-' },
 ]
-const cityOptions = ref<string[]>([])
+/** 城市下拉：取自 city store 的缓存列表 */
+const cityOptions = computed(() => cityStore.list)
 const skillOptions = ref<{ label: string, value: string }[]>([])
 
 // ---------- 基本资料 ----------
@@ -284,7 +287,7 @@ const updateExpectedSalary = (value?: number | null) => {
 onMounted(async () => {
   if (!loggedIn) return
 
-  getCityOptions()
+  cityStore.fetchCities()
   getKeywordOptions()
   await Promise.all([getInfo(), getProfile()])
 })
@@ -319,11 +322,6 @@ const getProfile = async () => {
     location: data.location,
   })
   Object.assign(profileBackup, profileForm)
-}
-
-const getCityOptions = async () => {
-  const res = await getCity().catch(() => [])
-  cityOptions.value = res.map((item) => item.city)
 }
 
 const getKeywordOptions = async () => {

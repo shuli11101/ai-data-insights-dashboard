@@ -52,6 +52,16 @@ interface JobPosition {
   skill_tags: string[]
 }
 
+/** 岗位详情：GET /home/jobDetail 返回的完整字段 */
+export interface JobDetail extends JobPosition {
+  city: string
+  district: string | null
+  publish_date: string | null
+  created_at: string
+  /** 当前登录用户是否已收藏；未登录固定为 false */
+  favorited: boolean
+}
+
 export interface PersonalInfo {
   education: string
   experience: string
@@ -90,9 +100,40 @@ export const getJobList = (params: { page: number; size: number, city: string, e
   return request<{ list: JobPosition[], total: number }>('/home/jobList', { params })
 }
 
+// 获取岗位详情（带合法 token 时额外返回 favorited）
+export const getJobDetail = (id: number | string): Promise<JobDetail> => {
+  return request<JobDetail>('/home/jobDetail', { params: { id } })
+}
+
+// 收藏岗位：返回 { added, favoriteCount }，重复收藏不会重复计数
+export const addFavorite = (jobId: number): Promise<{ added: boolean, favoriteCount: number }> => {
+  return request<{ added: boolean, favoriteCount: number }>('/user/favorite', { method: 'post', data: { jobId } })
+}
+
+// 取消收藏：返回 { removed, favoriteCount }
+export const removeFavorite = (jobId: number): Promise<{ removed: boolean, favoriteCount: number }> => {
+  return request<{ removed: boolean, favoriteCount: number }>('/user/favorite', {
+    method: 'delete',
+    params: { jobId },
+  })
+}
+
+/** 已保存的岗位匹配报告 */
+export interface MatchReport {
+  score: number
+  content: string
+  updateTime: string
+}
+
+// 获取当前用户对某个岗位的匹配报告；没生成过会返回 404
+export const getMatchReport = (jobId: number): Promise<MatchReport> => {
+  return request<MatchReport>('/user/match-report', { params: { jobId } })
+}
+
 // 获取薪资分布数据
-export const getSalaryRange = (): Promise<{ salaryRange: string; jobCount: number }[]> => {
-  return request<{ salaryRange: string; jobCount: number }[]>('/home/salaryRange')
+// 注意：后端 SQL 的列别名是 salary_range（下划线），不是 salaryRange
+export const getSalaryRange = (): Promise<{ salary_range: string; jobCount: number }[]> => {
+  return request<{ salary_range: string; jobCount: number }[]>('/home/salaryRange')
 }
 
 // 获取技术栈热度数据

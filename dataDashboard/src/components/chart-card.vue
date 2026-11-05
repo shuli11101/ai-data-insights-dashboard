@@ -1,6 +1,6 @@
 <!-- 卡片外观 + 卡片标题，图标区域 -->
 <template>
-  <el-card class="chart-card" shadow="never">
+  <el-card class="chart-card" shadow="never" :style="{ height: `${props.height ?? 300}px` }">
     <div class="chart-card__header">
       <h3 class="chart-card__title">{{ title }}</h3>
       <p class="chart-card__subtitle">{{ subtitle }}</p>
@@ -13,11 +13,13 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   /** 卡片标题 */
   title: string
   /** 卡片副标题 / 图表说明 */
   subtitle?: string
+  /** 卡片总高度，默认 300px；侧边栏等紧凑场景可传更小的值 */
+  height?: number
 }>()
 </script>
 
@@ -25,9 +27,9 @@ defineProps<{
 .chart-card {
   display: flex;
   flex-direction: column;
-  height: 300px;
   --el-card-border-color: #e5e7eb;
-  --el-card-border-radius: 8px;
+  --el-card-border-radius: 16px;
+  --el-card-padding: 16px 18px;
 
   box-shadow:
     0 1px 3px 0 rgba(15, 23, 42, 0.03),

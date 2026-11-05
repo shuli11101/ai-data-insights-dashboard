@@ -32,6 +32,16 @@ const router = createRouter({
           meta: { immersive: true },
         },
         {
+          path: '/jobs',
+          name: 'job-search',
+          component: () => import('@/views/jobSearch/index.vue'),
+        },
+        {
+          path: '/job/:id',
+          name: 'job-detail',
+          component: () => import('@/views/jobDetail/index.vue'),
+        },
+        {
           path: '/personal-info',
           name: 'personal-info',
           component: () => import('@/views/personalInfo/index.vue'),

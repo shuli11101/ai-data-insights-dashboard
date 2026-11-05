@@ -13,22 +13,44 @@
         <span class="header__title">JobVision</span>
       </router-link>
 
-      <!-- 城市（静态展示，后续接入城市切换） -->
-      <el-button text class="header__location" :icon="Location">
-        上海
-        <el-icon class="header__location-chevron">
-          <ArrowDown />
-        </el-icon>
-      </el-button>
+      <!-- 城市：点击展开城市选择面板 -->
+      <el-popover v-model:visible="cityPopoverVisible" placement="bottom-start" trigger="click" :width="720"
+        :offset="10" popper-class="header-city-popper">
+        <template #reference>
+          <el-button text class="header__location" :icon="Location">
+            {{ cityStore.current || '全国' }}
+            <el-icon class="header__location-chevron">
+              <ArrowDown />
+            </el-icon>
+          </el-button>
+        </template>
+
+        <CityPicker :current="cityStore.current" @select="handleSelectCity" />
+      </el-popover>
 
       <!-- 导航：原侧边栏的几项功能 -->
       <el-menu class="header__menu" mode="horizontal" :default-active="route.path" :ellipsis="false" router>
         <el-menu-item v-for="item in navItems" :key="item.path" :index="item.path">{{ item.label }}</el-menu-item>
       </el-menu>
 
-      <!-- 右侧：快捷分析 + 用户 -->
+      <!-- 右侧：快捷聊天 + 用户 -->
       <div class="header__actions">
-        <el-button class="header__analyze" :icon="Plus" @click="changeAnalysisVisible">分析岗位</el-button>
+        <!-- 云朵气泡：轮播闲聊引导，点一下进入 AI 对话，悬停时暂停轮播 -->
+        <div class="header__chat">
+          <button type="button" class="chat-cloud" @click="goAiChat" @mouseenter="stopTipLoop"
+            @mouseleave="startTipLoop">
+            <transition name="tip-fade" mode="out-in">
+              <span :key="tipIndex" class="chat-cloud__inner">
+                <span class="chat-cloud__title">{{ currentTip.title }}</span>
+                <span class="chat-cloud__desc">{{ currentTip.desc }}</span>
+              </span>
+            </transition>
+          </button>
+
+          <el-button round class="header__analyze" :icon="ChatDotRound" @click="goAiChat">AI 聊天</el-button>
+
+
+        </div>
 
         <span class="header__divider"></span>
 
@@ -58,22 +80,21 @@
       </div>
     </div>
 
-    <!-- AI 岗位洞察分析抽屉（默认关闭，内部 append-to-body 挂到 body 下） -->
-    <AiAnalysisDrawer v-model="analysisVisible" />
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { ArrowDown, Location, Plus, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, ChatDotRound, Location, SwitchButton } from '@element-plus/icons-vue'
 
+import { useCityStore } from '@/stores/city'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
 import { getToken, removeToken } from '@/utils/token'
 
-import AiAnalysisDrawer from './ai-analysis-drawer.vue'
+import CityPicker from './city-picker.vue'
 
 const props = defineProps({
   avatar: {
@@ -98,6 +119,19 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const personalInfoStore = usePersonalInfoStore()
+const cityStore = useCityStore()
+
+/** 城市面板显隐 */
+const cityPopoverVisible = ref(false)
+
+/** 选择城市：空串代表「全国」，选完收起面板 */
+const handleSelectCity = (city: string) => {
+  cityStore.setCurrent(city)
+  cityPopoverVisible.value = false
+}
+
+// 城市列表在 store 内缓存，多个页面共用一次请求
+cityStore.fetchCities()
 
 /** 是否已登录：本地有 token 或已缓存用户信息即视为登录 */
 const isLoggedIn = computed(() => Boolean(getToken()) || Boolean(userStore.profile))
@@ -116,11 +150,47 @@ const handleUserCommand = (command: string | number | object) => {
   router.push('/login')
 }
 
-/** 抽屉显隐：点「分析岗位」打开 */
-const analysisVisible = ref(false)
-const changeAnalysisVisible = () => {
-  analysisVisible.value = !analysisVisible.value
+/** 进入 AI 分析的「AI 对话」模式 */
+const goAiChat = () => {
+  router.push({ path: '/ai-analyse', query: { mode: '3' } })
 }
+
+/** 云朵气泡里的引导文案，定时轮播 */
+const CHAT_TIPS = [
+  { title: '今天想聊啥?', desc: '点我，随便聊两句' },
+  { title: '最近怎么样?', desc: '点我，唠两句' },
+  { title: '最近在找机会?', desc: '点我，聊聊方向' },
+  { title: '简历要不要改改?', desc: '点我，一起看看' },
+  { title: '有啥想吐槽的?', desc: '点我，我听着' },
+  { title: '工作还顺心吗?', desc: '点我，聊聊' },
+]
+
+/** 轮播间隔（毫秒） */
+const TIP_INTERVAL = 4000
+
+const tipIndex = ref(0)
+const currentTip = computed(() => CHAT_TIPS[tipIndex.value]!)
+
+let tipTimer: ReturnType<typeof setInterval> | null = null
+
+/** 停止轮播：清理定时器，可重复调用 */
+const stopTipLoop = () => {
+  if (tipTimer) {
+    clearInterval(tipTimer)
+    tipTimer = null
+  }
+}
+
+/** 开始轮播：按顺序循环切换文案，到末尾回到第一条 */
+const startTipLoop = () => {
+  stopTipLoop()
+  tipTimer = setInterval(() => {
+    tipIndex.value = (tipIndex.value + 1) % CHAT_TIPS.length
+  }, TIP_INTERVAL)
+}
+
+onMounted(startTipLoop)
+onBeforeUnmount(stopTipLoop)
 </script>
 
 <style scoped lang="scss">
@@ -258,22 +328,102 @@ const changeAnalysisVisible = () => {
     margin-left: auto;
   }
 
+  // AI 聊天按钮 + 云朵气泡
+  .header__chat {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+  }
+
+  // 胶囊形按钮，渐变底，和原来的描边方按钮区分开
   .header__analyze {
-    height: 38px;
-    padding: 0 15px;
+    flex-shrink: 0;
+    height: 36px;
+    padding: 0 16px;
     font-size: 12.5px;
     font-weight: 600;
-    border-radius: 10px;
+    background: linear-gradient(135deg, #007c77 0%, #00b5b0 100%);
+    border: none;
+    border-radius: 999px;
+    transition:
+      box-shadow 0.2s ease,
+      background 0.2s ease;
 
-    --el-button-text-color: #007c77;
-    --el-button-bg-color: #ffffff;
-    --el-button-border-color: #cfe1dd;
-    --el-button-hover-text-color: #007c77;
-    --el-button-hover-bg-color: #f3faf8;
-    --el-button-hover-border-color: #cfe1dd;
-    --el-button-active-text-color: #007c77;
-    --el-button-active-bg-color: #f3faf8;
-    --el-button-active-border-color: #cfe1dd;
+    --el-button-text-color: #ffffff;
+    --el-button-bg-color: transparent;
+    --el-button-border-color: transparent;
+    --el-button-hover-text-color: #ffffff;
+    --el-button-hover-bg-color: transparent;
+    --el-button-hover-border-color: transparent;
+    --el-button-active-text-color: #ffffff;
+    --el-button-active-bg-color: transparent;
+    --el-button-active-border-color: transparent;
+
+    &:hover {
+      background: linear-gradient(135deg, #006b66 0%, #00a5a0 100%);
+      box-shadow: 0 4px 12px rgba(0, 124, 119, 0.24);
+    }
+  }
+
+  // 云朵气泡：胶囊主体 + 两团圆角拼接，filter 让整体投影连成一片
+  .chat-cloud {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+    align-items: flex-start;
+    padding: 6px 14px 7px;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: #ffffff;
+    border: 0;
+    border-radius: 999px;
+    filter: drop-shadow(0 4px 10px rgba(11, 60, 57, 0.1));
+    transition: transform 0.18s ease;
+
+    &::before,
+    &::after {
+      position: absolute;
+      content: '';
+      background: #ffffff;
+      border-radius: 50%;
+    }
+
+    // 右上角轻微鼓出，更像云朵
+    &::after {
+      bottom: -5px;
+      right: 8px;
+      width: 12px;
+      height: 12px;
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+    }
+  }
+
+  .chat-cloud__inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .chat-cloud__title {
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #17252b;
+    white-space: nowrap;
+  }
+
+  .chat-cloud__desc {
+    font-size: 9.5px;
+    line-height: 1.3;
+    color: #78868f;
+    white-space: nowrap;
   }
 
   .header__divider {
@@ -380,6 +530,11 @@ const changeAnalysisVisible = () => {
       margin-left: 28px;
     }
 
+    // 中等宽度先收起云朵，避免挤压导航
+    .chat-cloud {
+      display: none;
+    }
+
     .header__menu {
       margin-left: 14px;
 
@@ -449,9 +604,34 @@ const changeAnalysisVisible = () => {
     }
   }
 }
+
+/* 云朵文案轮播的淡入淡出 */
+.tip-fade-enter-active,
+.tip-fade-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.tip-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.tip-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
 </style>
 
 <style lang="scss">
+// 城市选择面板同样挂在 body 下，需要单独写全局样式
+.header-city-popper {
+  padding: 18px 20px 20px;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(11, 60, 57, 0.12);
+}
+
 // 下拉菜单挂在 body 下，脱离 scoped 作用域，用独立的全局样式块
 .header-user-menu {
   min-width: 160px;

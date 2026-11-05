@@ -1,373 +1,232 @@
 <template>
-  <!-- 右侧栏：求职意向 / 最近分析 / 求职建议 -->
-  <el-card shadow="never" class="side" :class="{ 'side--guest': !isLoggedIn, 'side--empty': isLoggedIn && !hasData }">
-    <!-- 未登录：引导登录 -->
-    <div v-if="!isLoggedIn" class="side__guest">
-      <div class="side__guest-content">
-        <h3 class="side__guest-title">登录后查看求职数据</h3>
-        <p class="side__guest-desc">登录后，这里会展示你的求职意向、最近分析和求职建议。</p>
-        <div class="side__guest-actions">
-          <el-button type="primary" class="side__guest-btn" @click="goLogin">登录</el-button>
-          <el-button link class="side__link" @click="goRegister">还没有账号？注册</el-button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 已登录且已填写个人信息 -->
-    <template v-else-if="hasData">
-      <section class="side__section">
-        <span class="side__label">求职意向</span>
-        <div class="side__intent-row">
-          <h3 class="side__intent">前端开发工程师</h3>
-          <el-button link class="side__link">编辑</el-button>
-        </div>
-        <p class="side__intent-desc">上海 · 3–5 年 · 20–30K</p>
-      </section>
-
-      <section class="side__section">
-        <div class="side__row">
-          <h4 class="side__subtitle">最近分析</h4>
-          <el-button link class="side__link">全部 7 份</el-button>
-        </div>
-        <div v-for="item in recentAnalyses" :key="item.title + item.company" class="analysis">
-          <div class="analysis__info">
-            <p class="analysis__title">{{ item.title }}</p>
-            <p class="analysis__desc">{{ item.company }} · 匹配分析</p>
-          </div>
-          <span class="analysis__score">{{ item.score }}%</span>
-        </div>
-      </section>
-
-      <section class="side__section">
-        <span class="side__label">求职建议</span>
-        <blockquote class="advice">
-          <p class="advice__title">把「熟悉」和「精通」分开看。</p>
-          <p class="advice__desc">程度词，往往决定面试的深度。</p>
-        </blockquote>
-        <el-button link class="side__link advice__link">查看岗位分析</el-button>
-      </section>
-    </template>
-
-    <!-- 已登录但未填写个人信息：沿用个人页的空态样式 -->
-    <div v-else-if="personalInfoStore.loaded" class="side__empty">
-      <div class="side__empty-content">
-        <h3 class="side__empty-title">还没有求职数据</h3>
-        <p class="side__empty-desc">填写个人基础信息后，这里会展示求职意向、最近分析和求职建议。</p>
-        <el-button class="side__empty-btn" type="primary" @click="goPersonalInfo">去填写</el-button>
-      </div>
-    </div>
-
-    <!-- 首次请求返回前先占位，避免闪空态 -->
-    <div v-else v-loading="true" class="side__loading"></div>
-  </el-card>
+  <!-- 首页右侧栏：跟随「热门职业」标签页切换的市场统计图 -->
+  <ChartCard :title="activeChart.title" :subtitle="activeChart.subtitle" :height="300">
+    <div ref="chartEl" v-loading="loading" class="side__chart"></div>
+  </ChartCard>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import type { EChartsOption } from 'echarts'
 
-import { usePersonalInfoStore } from '@/stores/personalInfo'
-import { useUserStore } from '@/stores/user'
-import { getToken } from '@/utils/token'
+import { getDistrict, getExperienceSalary, getSalaryRange, getSkillTags } from '@/api/server'
+import { useChart } from '@/composables/useChart'
 
-/** 最近分析条目 */
-interface RecentAnalysis {
-  title: string
-  company: string
-  score: number
+import ChartCard from '@/components/chart-card.vue'
+
+/** 图表标识：一个标签页对应一个 */
+type ChartKey = 'salary' | 'skill' | 'district' | 'experience'
+
+interface Props {
+  /** 当前选中的标签页名称，由首页的 el-tabs 传入 */
+  tab: string
 }
 
-const recentAnalyses: RecentAnalysis[] = [
-  { title: '高级前端工程师', company: '星野科技', score: 86 },
-  { title: '前端开发工程师', company: '云图智能', score: 72 },
-]
+const props = defineProps<Props>()
 
-const personalInfoStore = usePersonalInfoStore()
-const userStore = useUserStore()
-const router = useRouter()
+/** 标签页 → 图表 的映射，调整对应关系只改这里 */
+const CHART_BY_TAB: Record<string, ChartKey> = {
+  热门技能: 'skill',
+  薪资区间: 'salary',
+  平均薪资: 'experience',
+  城市分布: 'district',
+}
 
-/** 是否已登录：本地有 token 或已缓存用户信息即视为登录 */
-const isLoggedIn = computed(() => Boolean(getToken()) || Boolean(userStore.profile))
+/** 各图表的标题与说明 */
+const CHART_META: Record<ChartKey, { title: string; subtitle: string }> = {
+  salary: { title: '薪资区间分布', subtitle: '各薪资区间的岗位数量（单位：人）' },
+  skill: { title: '热门技能 Top 8', subtitle: '岗位出现频次最高的技术栈' },
+  district: { title: '城市分布', subtitle: '各城市岗位数量占比' },
+  experience: { title: '经验与平均薪资', subtitle: '不同经验档位的平均月薪（单位：K）' },
+}
 
-/** 是否已有求职数据：以是否填写过个人信息为准 */
-const hasData = computed(() => personalInfoStore.loaded && personalInfoStore.filled)
+// 配色：主色与站点青绿色保持一致
+const PRIMARY = '#007c77'
+const AXIS_TEXT = '#8a979e'
+const VALUE_TEXT = '#3d4b54'
+const SPLIT_LINE = '#edf2f2'
+const PIE_COLORS = ['#007c77', '#2f9a94', '#54b0aa', '#7cc4bf', '#a3d7d3', '#c8e8e5', '#8fb8b3', '#b7cfcc', '#d9e4e2']
 
-const goLogin = () => router.push('/login')
-const goRegister = () => router.push('/register')
-const goPersonalInfo = () => router.push('/personal-info')
+const loading = ref(true)
+
+// 四个接口的数据，进入页面时一次性并行拉取，切标签页时不再请求
+const salaryRanges = ref<{ salary_range: string, jobCount: number }[]>([])
+const skillTags = ref<{ skill_tag: string, hot_count: number }[]>([])
+const districts = ref<{ area_name: string, job_count: number }[]>([])
+const experienceSalaries = ref<{ experience: string, avg_salary: number }[]>([])
+
+/** 当前应展示的图表，未知标签页时兜底到热门技能 */
+const activeKey = computed<ChartKey>(() => CHART_BY_TAB[props.tab] ?? 'skill')
+const activeChart = computed(() => CHART_META[activeKey.value])
+
+/** 横向条形图：类目在左、数值在右，适合侧栏这种窄容器 */
+const buildHorizontalBarOption = (labels: string[], values: number[], color: string): EChartsOption => ({
+  grid: { left: 0, right: 40, top: 8, bottom: 8, containLabel: true },
+  xAxis: { type: 'value', show: false },
+  yAxis: {
+    type: 'category',
+    data: labels,
+    // inverse 让第一项显示在最上方，和接口返回的降序一致
+    inverse: true,
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { fontSize: 10, color: AXIS_TEXT, margin: 8 },
+  },
+  series: [
+    {
+      type: 'bar',
+      data: values,
+      barWidth: 8,
+      itemStyle: { color, borderRadius: 3 },
+      label: { show: true, position: 'right', distance: 6, fontSize: 10, color: VALUE_TEXT },
+    },
+  ],
+})
+
+/**
+ * 竖向柱状图：类目在 X 轴，柱顶标数值。
+ * 侧栏较窄，坐标轴文字统一压到 9px；barWidth 与柱顶文案可按场景覆盖。
+ */
+const buildVerticalBarOption = (
+  labels: string[],
+  values: number[],
+  color: string,
+  barWidth = 12,
+  valueFormatter?: string,
+): EChartsOption => ({
+  grid: { left: 0, right: 4, top: 26, bottom: 0, containLabel: true },
+  xAxis: {
+    type: 'category',
+    data: labels,
+    axisLine: { lineStyle: { color: '#e2ebe9' } },
+    axisTick: { show: false },
+    axisLabel: { fontSize: 9, color: AXIS_TEXT, interval: 0 },
+  },
+  yAxis: {
+    type: 'value',
+    splitLine: { lineStyle: { color: SPLIT_LINE } },
+    axisLabel: { fontSize: 9, color: AXIS_TEXT },
+  },
+  series: [
+    {
+      type: 'bar',
+      data: values,
+      barWidth,
+      itemStyle: { color, borderRadius: [4, 4, 0, 0] },
+      label: {
+        show: true,
+        position: 'top',
+        fontSize: 9,
+        color: VALUE_TEXT,
+        ...(valueFormatter ? { formatter: valueFormatter } : {}),
+      },
+    },
+  ],
+})
+
+/** 城市分布：环形图 + 底部图例 */
+const buildDistrictOption = (): EChartsOption => ({
+  color: PIE_COLORS,
+  tooltip: { trigger: 'item', formatter: '{b}<br/>{c} 个岗位（{d}%）' },
+  legend: {
+    type: 'scroll',
+    bottom: 0,
+    left: 'center',
+    itemWidth: 8,
+    itemHeight: 8,
+    itemGap: 10,
+    textStyle: { fontSize: 10, color: AXIS_TEXT },
+  },
+  series: [
+    {
+      type: 'pie',
+      radius: ['42%', '66%'],
+      center: ['50%', '44%'],
+      label: { show: false },
+      labelLine: { show: false },
+      itemStyle: { borderColor: '#ffffff', borderWidth: 1 },
+      data: districts.value.map((item) => ({ name: item.area_name, value: item.job_count })),
+    },
+  ],
+})
+
+/** 经验与平均薪资：同款竖向柱状图，柱更宽并在柱顶加 K 单位 */
+const buildExperienceOption = (): EChartsOption =>
+  buildVerticalBarOption(
+    experienceSalaries.value.map((item) => item.experience),
+    experienceSalaries.value.map((item) => item.avg_salary),
+    PRIMARY,
+    20,
+    '{c}K',
+  )
+
+/** 按当前标签页产出对应配置；setOption 用 notMerge 覆盖，bar / pie 之间切换也能完全重置 */
+const activeOption = computed<EChartsOption>(() => {
+  switch (activeKey.value) {
+    case 'salary':
+      // 8 个档位并排在窄侧栏里，X 轴去掉 K 后缀避免文字互相挤压，单位已在副标题说明
+      return buildVerticalBarOption(
+        salaryRanges.value.map((item) => String(item.salary_range ?? '')),
+        salaryRanges.value.map((item) => item.jobCount),
+        PRIMARY,
+      )
+    case 'district':
+      return buildDistrictOption()
+    case 'experience':
+      return buildExperienceOption()
+    default:
+      return buildHorizontalBarOption(
+        skillTags.value.map((item) => item.skill_tag),
+        skillTags.value.map((item) => item.hot_count),
+        '#2f9a94',
+      )
+  }
+})
+
+// 图表容器：切换标签页由 watchEffect 自动触发 setOption
+const chartEl = useChart(() => activeOption.value)
+
+/** 四个统计接口并行请求，任一失败只影响对应图表 */
+const loadCharts = async () => {
+  try {
+    const [salary, skills, district, experience] = await Promise.all([
+      getSalaryRange(),
+      getSkillTags(),
+      getDistrict(),
+      getExperienceSalary(),
+    ])
+
+    // 聚合结果统一转成数字，避免接口返回字符串时 ECharts 画不出柱体
+    salaryRanges.value = salary.map((item) => ({
+      salary_range: item.salary_range,
+      jobCount: Number(item.jobCount),
+    }))
+    // 侧栏空间有限，技能只取热度前 8
+    skillTags.value = skills.slice(0, 8).map((item) => ({
+      skill_tag: item.skill_tag,
+      hot_count: Number(item.hot_count),
+    }))
+    districts.value = district.map((item) => ({
+      area_name: item.area_name,
+      job_count: Number(item.job_count),
+    }))
+    experienceSalaries.value = experience.map((item) => ({
+      experience: item.experience,
+      avg_salary: Number(item.avg_salary),
+    }))
+  } catch (error) {
+    console.log('获取首页统计数据失败：', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadCharts)
 </script>
 
 <style scoped lang="scss">
-.side {
-  align-self: start;
-  border-radius: 16px;
-
-  --el-card-border-color: var(--jv-border);
-  --el-card-border-radius: 16px;
-  --el-card-padding: 24px 28px;
-
-  .side__section + .side__section {
-    padding-top: 20px;
-    margin-top: 20px;
-    border-top: 1px solid var(--jv-line);
-  }
-
-  .side__label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    color: #78868f;
-  }
-
-  .side__intent-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
-  }
-
-  .side__intent {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: -0.3px;
-  }
-
-  .side__intent-desc {
-    margin: 4px 0 0;
-    font-size: 11.5px;
-    color: var(--jv-muted);
-  }
-
-  .side__link {
-    flex-shrink: 0;
-    height: auto;
-    padding: 0;
-    font-size: 11.5px;
-    font-weight: 500;
-
-    --el-button-text-color: var(--jv-primary);
-    --el-button-hover-link-text-color: #006b66;
-    --el-button-active-color: #006b66;
-  }
-
-  .side__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .side__subtitle {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  /* 已登录但未填写个人信息：与个人页空态同款渐变 + 模糊光斑 */
-  &.side--empty {
-    position: relative;
-    min-height: 360px;
-    overflow: hidden;
-    background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 55%, #ecfeff 100%);
-
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(60px);
-      opacity: 0.65;
-    }
-
-    &::before {
-      top: -60px;
-      left: 12%;
-      width: 220px;
-      height: 220px;
-      background: #a5b4fc;
-    }
-
-    &::after {
-      right: 10%;
-      bottom: -80px;
-      width: 240px;
-      height: 240px;
-      background: #67e8f9;
-    }
-  }
-
-  /* 未登录：换成暖色渐变，和已登录的空态区分开 */
-  &.side--guest {
-    position: relative;
-    min-height: 360px;
-    overflow: hidden;
-    background: linear-gradient(135deg, #fff4e5 0%, #fdf7f2 55%, #fff1f3 100%);
-
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(60px);
-      opacity: 0.6;
-    }
-
-    &::before {
-      top: -60px;
-      left: 12%;
-      width: 220px;
-      height: 220px;
-      background: #fdba74;
-    }
-
-    &::after {
-      right: 10%;
-      bottom: -80px;
-      width: 240px;
-      height: 240px;
-      background: #fda4af;
-    }
-  }
-
-  .side__empty,
-  .side__guest {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 310px;
-  }
-
-  .side__empty-content,
-  .side__guest-content {
-    padding: 0 8px;
-    text-align: center;
-  }
-
-  .side__empty-title {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f2937;
-  }
-
-  .side__empty-desc {
-    margin: 8px 0 0;
-    font-size: 12.5px;
-    line-height: 1.6;
-    color: #64748b;
-  }
-
-  .side__empty-btn {
-    margin-top: 20px;
-    background: #6774fe;
-    border-color: #6774fe;
-
-    &:hover {
-      background: #4f60f9;
-      border-color: #4f60f9;
-    }
-  }
-
-  .side__guest-title {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #8a4b16;
-  }
-
-  .side__guest-desc {
-    margin: 8px 0 0;
-    font-size: 12.5px;
-    line-height: 1.6;
-    color: #a16207;
-  }
-
-  .side__guest-actions {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 20px;
-  }
-
-  .side__guest-btn {
-    background: #007c77;
-    border-color: #007c77;
-
-    &:hover {
-      background: #006b66;
-      border-color: #006b66;
-    }
-  }
-
-  .side__loading {
-    min-height: 310px;
-  }
-
-  @media (max-width: 1023.98px) {
-    --el-card-padding: 20px 22px;
-  }
-}
-
-.analysis {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--jv-line);
-
-  &:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-
-  .analysis__title {
-    margin: 0;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--jv-ink);
-  }
-
-  .analysis__desc {
-    margin: 4px 0 0;
-    font-size: 10.5px;
-    color: var(--jv-faint);
-  }
-
-  .analysis__score {
-    flex-shrink: 0;
-    font-size: 19px;
-    font-weight: 700;
-    letter-spacing: -0.4px;
-    color: var(--jv-primary);
-  }
-}
-
-.advice {
-  padding: 2px 0 2px 14px;
-  margin: 12px 0 0;
-  border-left: 2px solid #a8d8d0;
-
-  .advice__title {
-    margin: 0;
-    font-size: 13.5px;
-    font-weight: 600;
-    line-height: 1.5;
-  }
-
-  .advice__desc {
-    margin: 2px 0 0;
-    font-size: 11.5px;
-    color: #4f6068;
-  }
-
-  .advice__link {
-    margin-top: 16px;
-  }
+.side__chart {
+  width: 100%;
+  height: 100%;
 }
 </style>
