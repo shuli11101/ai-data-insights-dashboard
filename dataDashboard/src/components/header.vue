@@ -55,8 +55,8 @@
         <span class="header__divider"></span>
 
         <!-- 已登录：用户下拉菜单 -->
-        <el-dropdown v-if="isLoggedIn" class="header__user-dropdown" trigger="click" popper-class="header-user-menu"
-          @command="handleUserCommand">
+        <el-dropdown ref="dropdownRef" v-if="isLoggedIn" class="header__user-dropdown" trigger="click"
+          popper-class="header-user-menu" @visible-change="handleDropdownVisible">
           <span class="header__user">
             <div v-if="avatar"></div>
             <el-avatar v-else :size="32" class="header__avatar">{{ nickname.slice(0, 1) }}</el-avatar>
@@ -65,10 +65,99 @@
               <ArrowDown />
             </el-icon>
           </span>
+
           <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="logout" :icon="SwitchButton">退出</el-dropdown-item>
-            </el-dropdown-menu>
+            <div class="user-menu">
+              <!-- 匹配概览：平均匹配分 + 半圆进度 -->
+              <section class="user-menu__score">
+                <div class="score__info">
+                  <header class="score__head">
+                    <span class="score__label">平均匹配</span>
+                  </header>
+                  <strong class="score__value">{{ averageText }}</strong>
+                </div>
+
+                <svg class="score__gauge" viewBox="0 0 60 34" aria-hidden="true">
+                  <path class="score__gauge-track" d="M8 30 A22 22 0 0 1 52 30" pathLength="100" />
+                  <path class="score__gauge-value" d="M8 30 A22 22 0 0 1 52 30" pathLength="100"
+                    :stroke-dashoffset="gaugeOffset" />
+                </svg>
+              </section>
+
+              <!-- 统计与入口 -->
+              <div class="user-menu__rows">
+                <button type="button" class="user-menu__row user-menu__row--action"
+                  @click="handleUserCommand('reports')">
+                  <span class="user-menu__icon">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path
+                        d="M9.5 1.5H4.5A1.5 1.5 0 0 0 3 3v10a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 13V6.5L9.5 1.5Z" />
+                      <path d="M9.5 1.5V5a1.5 1.5 0 0 0 1.5 1.5h2" />
+                      <path d="M5.5 8h5M5.5 10.5h3.5" />
+                    </svg>
+                  </span>
+                  <span class="user-menu__label">分析报告</span>
+                  <span class="user-menu__value">{{ reportCountText }}</span>
+                  <span class="user-menu__chevron">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                      stroke-linecap="round" aria-hidden="true">
+                      <path d="m5.5 3 5 5-5 5" />
+                    </svg>
+                  </span>
+                </button>
+
+                <button type="button" class="user-menu__row user-menu__row--action"
+                  @click="handleUserCommand('favorites')">
+                  <span class="user-menu__icon">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path
+                        d="M4 2.5A1.5 1.5 0 0 1 5.5 1h5A1.5 1.5 0 0 1 12 2.5v11.2a.5.5 0 0 1-.77.42L8 11.6l-3.23 2.5A.5.5 0 0 1 4 13.7V2.5Z" />
+                    </svg>
+                  </span>
+                  <span class="user-menu__label">收藏职位</span>
+                  <span class="user-menu__value">{{ favoriteCountText }}</span>
+                  <span class="user-menu__chevron">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                      stroke-linecap="round" aria-hidden="true">
+                      <path d="m5.5 3 5 5-5 5" />
+                    </svg>
+                  </span>
+                </button>
+
+                <button type="button" class="user-menu__row user-menu__row--action"
+                  @click="handleUserCommand('agreement')">
+                  <span class="user-menu__icon">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M8 1.5 13 3v4.4c0 3.1-2 5.6-5 7.1-3-1.5-5-4-5-7.1V3L8 1.5Z" />
+                      <path d="M5.8 8.2 7.3 9.7l3-3" />
+                    </svg>
+                  </span>
+                  <span class="user-menu__label">用户隐私协议</span>
+                  <span class="user-menu__chevron">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                      stroke-linecap="round" aria-hidden="true">
+                      <path d="m5.5 3 5 5-5 5" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+
+              <div class="user-menu__divider"></div>
+
+              <button type="button" class="user-menu__logout" @click="handleUserCommand('logout')">
+                <span class="user-menu__icon">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6.5 2.5H4A1.5 1.5 0 0 0 2.5 4v8A1.5 1.5 0 0 0 4 13.5h2.5" />
+                    <path d="M10 5.5 12.5 8 10 10.5M12.5 8H6" />
+                  </svg>
+                </span>
+                <span>退出</span>
+              </button>
+            </div>
           </template>
         </el-dropdown>
 
@@ -87,11 +176,14 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { ArrowDown, ChatDotRound, Location, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, ChatDotRound, Location } from '@element-plus/icons-vue'
 
+import { listConversations } from '@/api/conversation'
+import { getFavoriteList, getMatchReportList } from '@/api/server'
 import { useCityStore } from '@/stores/city'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
+import { parseSections, sectionNumber } from '@/utils/aiText'
 import { getToken, removeToken } from '@/utils/token'
 
 import CityPicker from './city-picker.vue'
@@ -140,13 +232,89 @@ const isLoggedIn = computed(() => Boolean(getToken()) || Boolean(userStore.profi
 const avatar = computed(() => props.avatar || userStore.profile?.avatar || '')
 const nickname = computed(() => props.nickname || userStore.profile?.nickname || '用户')
 
-/** 用户下拉菜单：当前只有退出 */
-const handleUserCommand = (command: string | number | object) => {
-  if (command !== 'logout') return
+/** 用户下拉菜单实例，点击入口后手动收起 */
+const dropdownRef = ref<{ handleClose: () => void }>()
+
+/** 下拉菜单统计：报告数 / 收藏数 / 平均匹配分 */
+const reportTotal = ref<number | null>(null)
+const favoriteTotal = ref<number | null>(null)
+const averageScore = ref(0)
+let statsLoading = false
+
+const clampScore = (value: number) => Math.min(100, Math.max(0, Math.round(value)))
+
+const averageText = computed(() => (reportTotal.value ? `${averageScore.value}%` : '—'))
+const reportCountText = computed(() => (reportTotal.value === null ? '—' : `${reportTotal.value} 份`))
+const favoriteCountText = computed(() => (favoriteTotal.value === null ? '—' : `${favoriteTotal.value} 个`))
+
+/** 半圆进度条的剩余长度：pathLength 归一化为 100，偏移量即未完成比例 */
+const gaugeOffset = computed(() => 100 - (reportTotal.value ? averageScore.value : 0))
+
+/** 下拉菜单每次展开时刷新统计，失败不提示、保持占位 */
+const loadStats = async () => {
+  if (!getToken() || statsLoading) return
+
+  statsLoading = true
+  try {
+    const [reports, favorites, conversations] = await Promise.all([
+      getMatchReportList(),
+      getFavoriteList(),
+      listConversations(50),
+    ])
+
+    // 分析报告 = 已保存的岗位匹配报告 + 技术栈 / JD 分析会话（列表接口最多返回 50 条）
+    const analysisRows = conversations.filter((item) => item.scene === 'skill' || item.scene === 'jd')
+    reportTotal.value = reports.total + analysisRows.length
+    favoriteTotal.value = favorites.total
+
+    // 平均匹配分：匹配报告分数 + 技术栈分析会话里的匹配度评分
+    const skillScores = analysisRows
+      .filter((item) => item.scene === 'skill')
+      .map((item) => sectionNumber(parseSections(item.lastMessage || ''), '匹配度评分'))
+      .filter((score) => score > 0)
+    const scores = [...reports.list.map((item) => clampScore(item.score)), ...skillScores]
+
+    averageScore.value = scores.length
+      ? clampScore(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+      : 0
+  } catch {
+    // 统计接口失败不影响退出登录等操作
+  } finally {
+    statsLoading = false
+  }
+}
+
+const handleDropdownVisible = (visible: boolean) => {
+  if (visible) loadStats()
+}
+
+/** 用户下拉菜单：分析报告 / 收藏职位 / 用户隐私协议 / 退出登录 */
+const handleUserCommand = (command: 'reports' | 'favorites' | 'agreement' | 'logout') => {
+  dropdownRef.value?.handleClose()
+
+  if (command === 'reports') {
+    router.push('/reports')
+    return
+  }
+
+  if (command === 'favorites') {
+    router.push('/favorites')
+    return
+  }
+
+  if (command === 'agreement') {
+    router.push('/agreement')
+    return
+  }
 
   removeToken()
   userStore.clearProfile()
   personalInfoStore.reset()
+
+  // 退出后清空统计，避免下次登录展示旧数据
+  reportTotal.value = null
+  favoriteTotal.value = null
+
   router.push('/login')
 }
 
@@ -633,32 +801,171 @@ onBeforeUnmount(stopTipLoop)
 }
 
 // 下拉菜单挂在 body 下，脱离 scoped 作用域，用独立的全局样式块
-.header-user-menu {
-  min-width: 160px;
+.header-user-menu.el-dropdown__popper {
+  padding: 0;
+  background: #ffffff;
+  border: 1px solid #dde8e6;
+  border-radius: 14px;
+  box-shadow: 0 10px 32px rgba(23, 37, 43, 0.1);
 
-  .el-dropdown-menu {
-    padding: 6px;
+  // 设计稿没有气泡箭头
+  .el-popper__arrow {
+    display: none;
+  }
+}
+
+.header-user-menu {
+  .user-menu {
+    box-sizing: border-box;
+    width: 200px;
+    padding: 16px;
   }
 
-  .el-dropdown-menu__item {
-    height: 42px;
-    padding: 0 12px;
-    font-size: 13px;
-    color: #f56c6c;
-    border-radius: 8px;
-    transition:
-      background-color 0.2s ease,
-      color 0.2s ease;
+  // ---------- 匹配概览 ----------
+  .user-menu__score {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 14px;
+    background: #f3f9f7;
+    border-radius: 12px;
+  }
 
-    .el-icon {
-      margin-right: 8px;
-      font-size: 15px;
-      color: #f56c6c;
+  .score__info {
+    min-width: 0;
+  }
+
+  .score__head {
+    display: flex;
+    align-items: center;
+  }
+
+  .score__label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #65747c;
+  }
+
+  .score__value {
+    display: block;
+    margin-top: 4px;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.6px;
+    color: #17252b;
+  }
+
+  // 半圆环形进度：轨道 + 按分数填充的弧
+  .score__gauge {
+    flex-shrink: 0;
+    width: 60px;
+    height: 34px;
+  }
+
+  .score__gauge-track {
+    fill: none;
+    stroke: #dcefea;
+    stroke-width: 5;
+  }
+
+  .score__gauge-value {
+    fill: none;
+    stroke: #007c77;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-dasharray: 100;
+    transition: stroke-dashoffset 0.6s ease;
+  }
+
+  // ---------- 统计行 ----------
+  .user-menu__rows {
+    padding: 8px 0 2px;
+  }
+
+  .user-menu__row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    height: 44px;
+    padding: 0 6px;
+    font: inherit;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+  }
+
+  .user-menu__row--action {
+    cursor: pointer;
+    transition: background-color 0.18s ease;
+
+    &:hover {
+      background: #f3f9f7;
+    }
+  }
+
+  .user-menu__icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    color: #007c77;
+  }
+
+  .user-menu__label {
+    flex: 1;
+    font-size: 13px;
+    color: #3d4b54;
+  }
+
+  .user-menu__value {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #17252b;
+  }
+
+  .user-menu__chevron {
+    display: flex;
+    align-items: center;
+    color: #8a979e;
+  }
+
+  .user-menu__divider {
+    height: 1px;
+    margin: 6px 0;
+    background: #edf2f2;
+  }
+
+  // ---------- 退出 ----------
+  .user-menu__logout {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    height: 44px;
+    padding: 0 6px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #e05a4f;
+    text-align: left;
+    cursor: pointer;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    transition: background-color 0.18s ease;
+
+    .user-menu__icon {
+      color: #e05a4f;
     }
 
-    &:not(.is-disabled):hover,
-    &:not(.is-disabled):focus {
-      color: #f56c6c;
+    &:hover {
       background: #fef0f0;
     }
   }

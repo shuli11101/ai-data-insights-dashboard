@@ -98,6 +98,10 @@
 
           <footer class="ai-match__foot">
             <el-button class="ai-match__btn" @click="close">关闭</el-button>
+            <el-button v-if="loggedIn" class="ai-match__btn" :disabled="saved ? false : !canSave" :loading="saving"
+              @click="handleToggleSave">
+              {{ saved ? '取消保存' : '保存分析报告' }}
+            </el-button>
             <el-button v-if="loggedIn" class="ai-match__btn" type="primary" :loading="loading" @click="run(true)">
               重新分析
             </el-button>
@@ -113,8 +117,10 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Close } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 import { streamMatch } from '@/api/ai'
+import { deleteMatchReport, saveMatchReport } from '@/api/server'
 import { parseSections, sectionItems, sectionNumber } from '@/utils/aiText'
 import { getToken } from '@/utils/token'
 
@@ -125,9 +131,15 @@ const props = withDefaults(defineProps<{
   jobTitle?: string
   /** panel = 盖住父级卡片，page = 盖住整个页面 */
   mode?: 'panel' | 'page'
+  /** 已保存的报告正文：传入后直接展示，不再请求分析接口 */
+  initialContent?: string
+  /** 已保存的报告分数，配合 initialContent 使用 */
+  initialScore?: number
 }>(), {
   jobTitle: '',
   mode: 'panel',
+  initialContent: '',
+  initialScore: undefined,
 })
 
 /** 面板显隐，由父组件 v-model 控制；打开时自动开始分析 */
@@ -139,8 +151,17 @@ const content = ref('')
 const score = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
+/** 本次分析是否完整结束（中断 / 出错时不允许保存半截报告） */
+const completed = ref(false)
+/** 正在保存报告 */
+const saving = ref(false)
+/** 当前结果是否已保存（命中服务端缓存时视为已保存） */
+const saved = ref(false)
 
 const loggedIn = computed(() => Boolean(getToken()))
+const canSave = computed(() =>
+  loggedIn.value && completed.value && !error.value && content.value.trim().length > 0,
+)
 const subtitle = computed(() =>
   props.jobTitle ? `${props.jobTitle} · 与你的求职意向比对` : '与你的求职意向比对',
 )
@@ -218,8 +239,29 @@ const reset = () => {
   content.value = ''
   score.value = null
   error.value = ''
+  completed.value = false
+  saved.value = false
   // 切换岗位后允许立即发起新请求，不被上一个岗位的防抖窗口挡住
   lastRunAt = 0
+}
+
+/** 用外部传入的已保存报告直接渲染；没有则返回 false，交给接口分析 */
+const applyPreset = () => {
+  const preset = props.initialContent?.trim()
+  if (!preset) return false
+
+  reset()
+  content.value = preset
+  score.value = props.initialScore ?? null
+  completed.value = true
+  saved.value = true
+  return true
+}
+
+/** 打开面板：有已保存内容直接展示，否则发起分析 */
+const open = () => {
+  if (!props.jobId) return
+  if (!applyPreset()) run()
 }
 
 /** 发起（或重新发起）匹配分析 */
@@ -239,6 +281,8 @@ const run = async (force = false) => {
   content.value = ''
   score.value = null
   error.value = ''
+  completed.value = false
+  saved.value = false
   loading.value = true
 
   const current = new AbortController()
@@ -251,11 +295,14 @@ const run = async (force = false) => {
       signal: current.signal,
       onMeta: (meta) => {
         if (meta.score != null) score.value = meta.score
+        // 服务端返回的是已保存过的报告，无需再次保存
+        if (meta.cached) saved.value = true
       },
       onDelta: (delta) => {
         content.value += delta
       },
     })
+    completed.value = true
   } catch (e) {
     if (current.signal.aborted) return
     error.value = e instanceof Error ? e.message : 'AI 分析失败'
@@ -264,6 +311,37 @@ const run = async (force = false) => {
       controller = null
       loading.value = false
     }
+  }
+}
+
+/** 已保存时再次点击取消保存，否则保存当前分析结果（同岗位重复保存会覆盖旧报告） */
+const handleToggleSave = async () => {
+  if (saving.value) return
+  if (!saved.value && !canSave.value) return
+
+  const jobId = props.jobId
+  const removing = saved.value
+  saving.value = true
+  try {
+    if (removing) {
+      await deleteMatchReport(jobId)
+      // 操作期间切换了岗位，旧岗位的结果不再回填
+      if (props.jobId !== jobId) return
+      saved.value = false
+      ElMessage.success('已取消保存')
+      return
+    }
+
+    const result = await saveMatchReport(jobId, content.value)
+    if (props.jobId !== jobId) return
+    if (result.score != null) score.value = result.score
+    saved.value = true
+    ElMessage.success('分析报告已保存')
+  } catch (e) {
+    const fallback = removing ? '取消保存失败，请稍后重试' : '保存失败，请稍后重试'
+    ElMessage.error(e instanceof Error ? e.message : fallback)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -276,18 +354,30 @@ const goLogin = () => {
   router.push('/login')
 }
 
-// 打开即分析，关闭时中止请求
-watch(visible, (open) => {
-  if (open) run()
-  else stop()
-})
+// 打开即加载；immediate 兼容「组件创建时就已是打开状态」（如报告列表直接点开）
+watch(
+  visible,
+  (isOpen) => {
+    if (isOpen) open()
+    else stop()
+  },
+  { immediate: true },
+)
 
-// 面板打开时切换岗位，重新分析
+// 面板打开时切换岗位，重新加载（有已保存报告则直接展示）
 watch(
   () => props.jobId,
   () => {
     reset()
-    if (visible.value) run()
+    if (visible.value) open()
+  },
+)
+
+// 同一面板内切换到另一份已保存报告时，直接替换内容
+watch(
+  () => props.initialContent,
+  () => {
+    if (visible.value) open()
   },
 )
 

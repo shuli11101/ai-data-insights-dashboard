@@ -42,6 +42,16 @@ const router = createRouter({
           component: () => import('@/views/jobDetail/index.vue'),
         },
         {
+          path: '/reports',
+          name: 'reports',
+          component: () => import('@/views/reports/index.vue'),
+        },
+        {
+          path: '/favorites',
+          name: 'favorites',
+          component: () => import('@/views/favorites/index.vue'),
+        },
+        {
           path: '/personal-info',
           name: 'personal-info',
           component: () => import('@/views/personalInfo/index.vue'),
@@ -50,6 +60,11 @@ const router = createRouter({
           path: '/about',
           name: 'about',
           component: () => import('@/views/about/index.vue'),
+        },
+        {
+          path: '/agreement',
+          name: 'agreement',
+          component: () => import('@/views/agreement/index.vue'),
         },
       ],
     },

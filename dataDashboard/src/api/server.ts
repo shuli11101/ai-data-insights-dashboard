@@ -130,6 +130,63 @@ export const getMatchReport = (jobId: number): Promise<MatchReport> => {
   return request<MatchReport>('/user/match-report', { params: { jobId } })
 }
 
+// 保存匹配报告：分数由服务端从正文解析，同一岗位重复保存会覆盖旧报告
+export const saveMatchReport = (jobId: number, content: string): Promise<{ score: number }> => {
+  return request<{ score: number }>('/user/match-report', {
+    method: 'post',
+    data: { jobId, content },
+  })
+}
+
+// 删除匹配报告（取消保存）：只能删当前用户自己的报告
+export const deleteMatchReport = (jobId: number): Promise<{ deleted: number, missing: number[] }> => {
+  return request<{ deleted: number, missing: number[] }>('/user/match-report', {
+    method: 'delete',
+    params: { jobId },
+  })
+}
+
+/** 分析报告列表项，含正文，点开即可直接展示 */
+export interface MatchReportListItem {
+  reportId: number
+  jobId: number
+  jobName: string
+  company: string
+  location: string
+  experience: string
+  skillCoverage: number
+  salaryDeviation: number
+  score: number
+  saveTime: string
+  /** 报告正文，列表接口直接返回，点开即可展示 */
+  content: string
+}
+
+// 当前用户已保存的分析报告列表，按最后更新时间倒序
+export const getMatchReportList = (): Promise<{ list: MatchReportListItem[], total: number }> => {
+  return request<{ list: MatchReportListItem[], total: number }>('/user/match-report/list')
+}
+
+/** 收藏岗位列表项 */
+export interface FavoriteJobItem {
+  id: number
+  company: string
+  jobName: string
+  city: string
+  district: string
+  salaryMin: number
+  salaryMax: number
+  experience: string
+  skillTags: string[]
+  publishDate: string
+  favoriteTime: string
+}
+
+// 当前用户收藏的岗位列表，按收藏时间倒序
+export const getFavoriteList = (): Promise<{ list: FavoriteJobItem[], total: number }> => {
+  return request<{ list: FavoriteJobItem[], total: number }>('/user/favorite/list')
+}
+
 // 获取薪资分布数据
 // 注意：后端 SQL 的列别名是 salary_range（下划线），不是 salaryRange
 export const getSalaryRange = (): Promise<{ salary_range: string; jobCount: number }[]> => {

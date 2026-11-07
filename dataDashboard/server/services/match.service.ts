@@ -243,6 +243,8 @@ export async function listMatchReports(userId: number): Promise<MatchReportListR
         salaryDeviation: parseSalaryDeviation(content),
         score: Number(row.score ?? 0),
         saveTime: row.update_time as Date,
+        // 列表已查出正文，一并返回，前端点击即可直接展示，无需二次请求
+        content,
       }
     }),
     total: Number(countRows[0]?.total ?? 0),

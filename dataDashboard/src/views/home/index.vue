@@ -29,9 +29,9 @@
         <aside class="hero__directions">
           <h2 class="directions__title">热门方向</h2>
           <ul class="directions__grid">
-            <li v-for="item in directions" :key="item" class="directions__item">{{ item }}</li>
+            <li v-for="item in directions" :key="item" class="directions__item" @click="pickDirection(item)">{{ item }}
+            </li>
           </ul>
-          <el-link :underline="false" class="directions__more">查看全部职位</el-link>
         </aside>
       </div>
     </section>
@@ -319,6 +319,14 @@ const pickKeyword = (word: string) => {
   searchText.value = word
   handleSearch()
 }
+
+/** 点击热门方向：直接带方向关键词跳转搜索页，不回填搜索框 */
+const pickDirection = (word: string) => {
+  const query: Record<string, string> = { keyword: word }
+  if (cityFilter.value) query.city = cityFilter.value
+
+  router.push({ path: '/jobs', query })
+}
 </script>
 
 <style scoped lang="scss">
@@ -464,7 +472,13 @@ const pickKeyword = (word: string) => {
       font-size: 15px;
       font-weight: 500;
       color: var(--jv-text);
+      cursor: pointer;
       border-bottom: 1px solid #d6e9e4;
+      transition: color 0.18s ease;
+
+      &:hover {
+        color: var(--jv-primary);
+      }
 
       &:nth-last-child(-n + 2) {
         border-bottom: none;

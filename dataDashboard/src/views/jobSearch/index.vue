@@ -90,7 +90,7 @@
 
                 <div class="detail__actions">
                   <el-button class="detail__btn detail__btn--primary" @click="matchVisible = true">AI 分析匹配度</el-button>
-                  <el-button type="primary" class="detail__btn " @click="handleContact">JD
+                  <el-button type="primary" class="detail__btn " @click="jdVisible = true">JD
                     岗位描述</el-button>
                   <el-button class="detail__icon-btn" :icon="detail.favorited ? StarFilled : Star"
                     :title="detail.favorited ? '取消收藏' : '收藏'" :loading="favoriting" @click="toggleFavorite" />
@@ -133,6 +133,9 @@
           <!-- AI 匹配分析：与岗位详情页一致，盖住整个页面 -->
           <AiMatchPanel v-if="detail" v-model="matchVisible" :job-id="detail.id" :job-title="detail.job_name"
             mode="page" />
+
+          <!-- JD 岗位描述：与 AI 匹配分析一致，盖住整个页面 -->
+          <JdDescriptionPanel v-if="detail" v-model="jdVisible" :job="detail" mode="page" />
         </section>
       </div>
     </div>
@@ -151,6 +154,7 @@ import { getToken } from '@/utils/token'
 
 import AiMatchPanel from '@/components/ai-match-panel.vue'
 import CityAutocomplete from '@/components/city-autocomplete.vue'
+import JdDescriptionPanel from '@/components/jd-description-panel.vue'
 
 /** 列表接口返回的岗位行（比详情少了城市等字段） */
 interface JobRow {
@@ -205,6 +209,9 @@ const favoriting = ref(false)
 
 /** AI 匹配分析面板显隐 */
 const matchVisible = ref(false)
+
+/** JD 岗位描述面板显隐 */
+const jdVisible = ref(false)
 
 /** 右侧详情容器：切换岗位时把滚动位置回到顶部 */
 const detailRef = ref<HTMLElement | null>(null)
@@ -404,8 +411,6 @@ const handleShare = async () => {
     ElMessage.warning('复制失败，请手动复制地址栏链接')
   }
 }
-
-const handleContact = () => ElMessage.info('沟通功能暂未开放')
 
 const goFullDetail = (id: number) => router.push(`/job/${id}`)
 

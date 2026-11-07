@@ -207,6 +207,7 @@ import { ChatDotRound, DataAnalysis, Document, Lock, Plus } from '@element-plus/
 import { useAIStream } from '@/composables/useAIStream'
 import type { AiMessage } from '@/api/ai'
 import { deleteConversations, getConversation, listConversations } from '@/api/conversation'
+import type { ConversationDetail } from '@/api/conversation'
 import { getToken } from '@/utils/token'
 
 import AnalysisReport from './analysis-report.vue'
@@ -471,8 +472,8 @@ const startNew = () => {
   focusComposer()
 }
 
-/** 打开一条历史记录：按会话 ID 拉取完整消息后还原 */
-const openHistory = async (item: HistoryItem) => {
+/** 打开一条历史记录：按会话 ID 拉取完整消息后还原；已拿到详情时直接复用 */
+const openHistory = async (item: HistoryItem, detail?: ConversationDetail) => {
   requestSeq++
   reset()
   const seq = requestSeq
@@ -485,10 +486,10 @@ const openHistory = async (item: HistoryItem) => {
   activeHistoryId.value = item.id
 
   try {
-    const detail = await getConversation(item.id)
+    const data = detail ?? (await getConversation(item.id))
     if (seq !== requestSeq) return
 
-    const messages = detail.messages
+    const messages = data.messages
       .filter((message) => message.role === 'user' || message.role === 'assistant')
       .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }))
 
@@ -653,8 +654,39 @@ const welcomeExamples = computed(() => {
 // ---------- 用户信息 ----------
 // 侧栏底部只保留隐私提示，用户信息统一走顶部导航
 
-// 进入页面拉取一次历史会话列表
-onMounted(loadHistory)
+// 进入页面拉取一次历史会话列表；带 conversationId 时（从分析报告页进入）直接恢复该记录
+const initHistory = async () => {
+  await loadHistory()
+
+  const rawId = route.query.conversationId
+  const id = Array.isArray(rawId) ? rawId[0] : rawId
+  if (typeof id !== 'string' || !id || !getToken()) return
+
+  const item = history.value.find((entry) => entry.id === id)
+  if (item) {
+    openHistory(item)
+    return
+  }
+
+  // 会话不在侧栏最近记录里：按 ID 直接拉取，用 scene 推断分析方式
+  try {
+    const detail = await getConversation(id)
+    openHistory(
+      {
+        id,
+        mode: sceneToMode(detail.scene),
+        title: '',
+        time: detail.updateTime,
+        messageCount: detail.messages.length,
+      },
+      detail,
+    )
+  } catch {
+    // 会话不存在或不属于当前用户时保持默认空状态
+  }
+}
+
+onMounted(initHistory)
 
 // 离开页面时中止未完成的请求
 onBeforeUnmount(() => {

@@ -7,7 +7,8 @@
           <el-breadcrumb-item :to="{ path: '/' }">职位</el-breadcrumb-item>
           <el-breadcrumb-item>{{ job?.job_name || '岗位详情' }}</el-breadcrumb-item>
         </el-breadcrumb>
-        <el-button link class="job-detail__back" :icon="ArrowLeft" @click="goBack">返回职位列表</el-button>
+        <el-button v-if="route.query.name === 'favorites'" link class="job-detail__back" :icon="ArrowLeft"
+          @click="goBack">返回职位列表</el-button>
       </div>
 
       <!-- 首次加载占位，避免内容闪动 -->
@@ -38,7 +39,7 @@
           <div class="sheet__actions">
             <el-button type="primary" class="sheet__btn sheet__btn--primary" @click="matchVisible = true">AI
               分析匹配度</el-button>
-            <el-button class="sheet__btn" @click="handleApply">JD 岗位描述</el-button>
+            <el-button class="sheet__btn" @click="jdVisible = true">JD 岗位描述</el-button>
             <el-button class="sheet__icon-btn" :icon="job.favorited ? StarFilled : Star" :loading="favoriting"
               :title="job.favorited ? '取消收藏' : '收藏'" @click="toggleFavorite" />
             <el-button class="sheet__icon-btn" :icon="Share" title="分享" @click="handleShare" />
@@ -113,6 +114,9 @@
 
     <!-- AI 匹配分析：盖住整个页面 -->
     <AiMatchPanel v-if="job" v-model="matchVisible" :job-id="job.id" :job-title="job.job_name" mode="page" />
+
+    <!-- JD 岗位描述：与 AI 匹配分析一致，盖住整个页面 -->
+    <JdDescriptionPanel v-if="job" v-model="jdVisible" :job="job" mode="page" />
   </div>
 </template>
 
@@ -123,6 +127,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, Location, Share, Star, StarFilled } from '@element-plus/icons-vue'
 
 import AiMatchPanel from '@/components/ai-match-panel.vue'
+import JdDescriptionPanel from '@/components/jd-description-panel.vue'
 
 import {
   addFavorite,
@@ -148,6 +153,9 @@ const error = ref('')
 
 /** AI 匹配分析面板显隐 */
 const matchVisible = ref(false)
+
+/** JD 岗位描述面板显隐 */
+const jdVisible = ref(false)
 
 /** 路由上的岗位 ID，非法值直接走错误态 */
 const jobId = computed(() => Number(route.params.id))
@@ -268,9 +276,12 @@ const handleShare = async () => {
   }
 }
 
-const handleApply = () => ElMessage.info('投递功能暂未开放')
-
-const goBack = () => router.push('/')
+const goBack = () => {
+  router.push('/')
+  if (route.query.name === 'favorites') {
+    router.push('/favorites')
+  }
+}
 
 // 详情页内切换岗位（如从收藏列表点进来）时重新拉取
 watch(jobId, fetchDetail, { immediate: true })
