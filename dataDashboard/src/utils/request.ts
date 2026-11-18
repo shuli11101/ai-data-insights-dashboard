@@ -29,7 +29,7 @@ service.interceptors.response.use(
   (response) => {
     const body = response.data as ApiResponse<unknown>
     // 业务码非 0 也走 reject，这样调用方只需要 try/catch 一种处理方式
-    if (body.code !== 0) {
+    if (body.code !== 200) {
       return Promise.reject(new Error(body.message))
     }
     return response

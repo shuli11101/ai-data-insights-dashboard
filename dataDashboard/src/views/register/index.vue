@@ -155,7 +155,8 @@
           <el-input v-model="code" class="register__input" maxlength="6" placeholder="请输入验证码">
             <template #suffix>
               <span class="register__sep register__sep--suffix"></span>
-              <el-button link class="register__code-btn" :disabled="countdown > 0" @click="handleSendCode">
+              <el-button link class="register__code-btn" :disabled="countdown > 0 || sendingCode"
+                @click="handleSendCode">
                 {{ countdown > 0 ? `${countdown}s 后重新获取` : codeSent ? '重新获取' : '获取验证码' }}
               </el-button>
             </template>
@@ -206,7 +207,7 @@ import { useRouter } from 'vue-router'
 
 import { ElMessage } from 'element-plus'
 
-import { register } from '@/api/server'
+import { register, sendSmsCode } from '@/api/server'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
 import { setToken } from '@/utils/token'
@@ -222,6 +223,8 @@ const agreed = ref(false)
 const submitting = ref(false)
 /** 是否已点击「获取验证码」 */
 const codeSent = ref(false)
+/** 请求发送验证码中，防止重复点击 */
+const sendingCode = ref(false)
 /** 验证码倒计时（秒），大于 0 时按钮不可点 */
 const countdown = ref(0)
 let countdownTimer: number | undefined
@@ -247,17 +250,27 @@ const startCountdown = (seconds = 60) => {
   }, 1000)
 }
 
-/** 点击获取验证码：倒计时中直接忽略，避免重复点击（短信服务暂未接入） */
-const handleSendCode = () => {
-  if (countdown.value > 0) return
+/** 点击获取验证码：调 /api/auth/sms-code 发送短信，成功后开始倒计时 */
+const handleSendCode = async () => {
+  if (countdown.value > 0 || sendingCode.value) return
 
-  if (!/^1[3-9]\d{9}$/.test(phone.value.trim())) {
+  const phoneText = phone.value.trim()
+  if (!/^1[3-9]\d{9}$/.test(phoneText)) {
     ElMessage.warning('请输入正确的手机号')
     return
   }
-  codeSent.value = true
-  startCountdown()
-  ElMessage.success('验证码已发送')
+
+  sendingCode.value = true
+  try {
+    await sendSmsCode(phoneText)
+    codeSent.value = true
+    startCountdown()
+    ElMessage.success('验证码已发送')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '验证码发送失败，请稍后重试')
+  } finally {
+    sendingCode.value = false
+  }
 }
 
 onBeforeUnmount(stopCountdown)

@@ -129,12 +129,10 @@ onMounted(() => {
 // 获取技术关键词
 const getKeywordOptions = async () => {
   const res = await getKeywords()
-  skillOptions.value = res.map(item => {
-    return {
-      label: item.skill,
-      value: item.skill,
-    }
-  })
+  skillOptions.value = res.map((skill) => ({
+    label: skill,
+    value: skill,
+  }))
 }
 
 

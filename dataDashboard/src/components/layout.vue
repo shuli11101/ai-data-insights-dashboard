@@ -34,8 +34,9 @@ import Header from './header.vue'
 
 const userStore = useUserStore()
 
-// 获取用户信息
-const { avatar, nickname } = userStore.profile || {}
+// 获取用户信息（用 computed 保证响应式，profile 加载完成后自动更新）
+const avatar = computed(() => userStore.profile?.avatar ?? '')
+const nickname = computed(() => userStore.profile?.nickname ?? '')
 
 const route = useRoute()
 

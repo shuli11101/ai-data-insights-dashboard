@@ -23,6 +23,11 @@ export const login = (body: LoginParams): Promise<{ token: string }> => {
   return request<{ token: string }>('/auth/login', { method: 'post', data: body })
 }
 
+// 发送短信验证码：传入手机号，验证码由服务端下发
+export const sendSmsCode = (phone: string): Promise<void> => {
+  return request<void>('/auth/sms-code', { method: 'post', data: { phone } })
+}
+
 /** 当前登录用户的账号信息 */
 export interface UserProfile {
   id: number
@@ -213,9 +218,9 @@ export const getCity = (): Promise<{ city: string }[]> => {
   return request<{ city: string }[]>('/home/city')
 }
 
-// 获取技术关键词
-export const getKeywords = (): Promise<{ skill: string }[]> => {
-  return request<{ skill: string }[]>('/home/keywords')
+// 获取技术关键词（后端直接返回字符串数组）
+export const getKeywords = (): Promise<string[]> => {
+  return request<string[]>('/home/keywords')
 }
 
 // 获取客户端 IP（浏览器读不到本机 IP，由服务端根据请求来源返回）

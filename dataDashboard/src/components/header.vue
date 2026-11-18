@@ -58,7 +58,7 @@
         <el-dropdown ref="dropdownRef" v-if="isLoggedIn" class="header__user-dropdown" trigger="click"
           popper-class="header-user-menu" @visible-change="handleDropdownVisible">
           <span class="header__user">
-            <div v-if="avatar"></div>
+            <el-avatar v-if="avatar" :size="32" :src="avatar" class="header__avatar"></el-avatar>
             <el-avatar v-else :size="32" class="header__avatar">{{ nickname.slice(0, 1) }}</el-avatar>
             <span class="header__username">{{ nickname }}</span>
             <el-icon class="header__chevron">

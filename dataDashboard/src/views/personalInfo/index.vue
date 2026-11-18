@@ -326,7 +326,7 @@ const getProfile = async () => {
 
 const getKeywordOptions = async () => {
   const res = await getKeywords().catch(() => [])
-  skillOptions.value = res.map((item) => ({ label: item.skill, value: item.skill }))
+  skillOptions.value = res.map((skill) => ({ label: skill, value: skill }))
 }
 
 // ---------- 头像 ----------
