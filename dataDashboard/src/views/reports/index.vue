@@ -233,17 +233,18 @@ const formatDay = (time: string) => {
   return `${date.getMonth() + 1} 月 ${date.getDate()} 日`
 }
 
-/** 技术栈分析的报告里带「匹配度评分」，JD 拆解没有分数 */
+/** 技能评估报告里带「竞争力评分」，旧数据仍可能是「匹配度评分」；JD 拆解没有分数 */
 const conversationScore = (item: ConversationSummary) => {
   if (item.scene !== 'skill') return null
 
-  const score = sectionNumber(parseSections(item.lastMessage || ''), '匹配度评分')
+  const sections = parseSections(item.lastMessage || '')
+  const score = sectionNumber(sections, '竞争力评分') || sectionNumber(sections, '匹配度评分')
   return score ? Math.min(100, Math.round(score)) : null
 }
 
 const buildConversationRows = (list: ConversationSummary[]): ReportRow[] =>
   list
-    .filter((item) => item.scene === 'skill' || item.scene === 'jd')
+    .filter((item) => item.scene === 'skill' || item.scene === 'jd' || item.scene === 'jdDesc')
     .map((item) => {
       const type: ReportType = item.scene === 'skill' ? 'skill' : 'jd'
       const dateText = formatDay(item.updateTime)

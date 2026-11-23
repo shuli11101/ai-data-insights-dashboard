@@ -263,14 +263,19 @@ const loadStats = async () => {
     ])
 
     // 分析报告 = 已保存的岗位匹配报告 + 技术栈 / JD 分析会话（列表接口最多返回 50 条）
-    const analysisRows = conversations.filter((item) => item.scene === 'skill' || item.scene === 'jd')
+    const analysisRows = conversations.filter(
+      (item) => item.scene === 'skill' || item.scene === 'jd' || item.scene === 'jdDesc',
+    )
     reportTotal.value = reports.total + analysisRows.length
     favoriteTotal.value = favorites.total
 
-    // 平均匹配分：匹配报告分数 + 技术栈分析会话里的匹配度评分
+    // 平均匹配分：匹配报告分数 + 技能评估会话里的竞争力评分（旧数据为匹配度评分）
     const skillScores = analysisRows
       .filter((item) => item.scene === 'skill')
-      .map((item) => sectionNumber(parseSections(item.lastMessage || ''), '匹配度评分'))
+      .map((item) => {
+        const sections = parseSections(item.lastMessage || '')
+        return sectionNumber(sections, '竞争力评分') || sectionNumber(sections, '匹配度评分')
+      })
       .filter((score) => score > 0)
     const scores = [...reports.list.map((item) => clampScore(item.score)), ...skillScores]
 

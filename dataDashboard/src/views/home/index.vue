@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <!-- 首屏：搜索 + 热门方向（静态演示数据，暂不接入接口） -->
+    <!-- 首屏：搜索 + 招聘活动（静态演示数据，暂不接入接口） -->
     <section class="hero">
       <div class="home__inner hero__inner">
         <div class="hero__main">
@@ -26,12 +26,11 @@
           </div>
         </div>
 
-        <aside class="hero__directions">
-          <h2 class="directions__title">热门方向</h2>
-          <ul class="directions__grid">
-            <li v-for="item in directions" :key="item" class="directions__item" @click="pickDirection(item)">{{ item }}
-            </li>
-          </ul>
+        <aside class="hero__banners" aria-label="热门方向">
+          <button v-for="banner in banners" :key="banner.src" type="button" class="banner-item"
+            :aria-label="banner.title" @click="pickDirection(banner.keyword)">
+            <img class="banner-item__img" :src="banner.src" :alt="banner.title" loading="lazy" />
+          </button>
         </aside>
       </div>
     </section>
@@ -139,7 +138,13 @@ interface JobListItem {
 
 const hotKeywords = ['前端开发', 'React', 'AI 应用', '产品经理', '数据分析']
 
-const directions = ['前端开发', '后端开发', '人工智能', '产品经理', 'UI/UX 设计', '数据分析', '测试工程', '运营']
+// 首屏右侧的四张招聘活动 banner（顺序与设计稿一致：校招 / 前端 / 冬季 / 设计）
+const banners = [
+  { src: '/banners/01-campus.png', title: '2027 校园招聘', keyword: '校招' },
+  { src: '/banners/03-frontend.png', title: '前端招聘专场', keyword: '前端开发' },
+  { src: '/banners/02-winter.png', title: '冬季超车计划', keyword: '算法' },
+  { src: '/banners/04-design.png', title: '设计岗位招聘', keyword: 'UI/UX 设计' },
+]
 
 const tabs = ['热门技能', '薪资区间', '平均薪资', '城市分布']
 const activeTab = ref('热门技能')
@@ -391,8 +396,8 @@ const pickDirection = (word: string) => {
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 384px;
-    gap: 32px;
+    grid-template-columns: minmax(0, 1fr) 520px;
+    gap: 40px;
     padding-top: 48px;
     padding-bottom: 40px;
   }
@@ -444,61 +449,48 @@ const pickDirection = (word: string) => {
     }
   }
 
-  // 热门方向：左侧与上方各一条细线，和设计稿的 L 形分割一致
-  .hero__directions {
-    padding: 28px 0 0 32px;
-    border-top: 1px solid #cbe2dc;
-    border-left: 1px solid #cbe2dc;
+  // 热门方向：四张活动 banner 拼成一个整体（左宽右窄，2×2 无缝拼接）
+  .hero__banners {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-auto-rows: 1fr;
+    aspect-ratio: 15 / 8;
+    overflow: hidden;
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(23, 37, 43, 0.1);
+  }
 
-    .directions__title {
-      margin: 0 0 16px;
-      font-size: 11.5px;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-      color: #5c7772;
+  .banner-item {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    cursor: pointer;
+    background: #e8f2f0;
+    border: none;
+
+    &:focus-visible {
+      outline: 2px solid var(--jv-primary);
+      outline-offset: -2px;
     }
 
-    .directions__grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      column-gap: 32px;
-      padding: 0;
-      margin: 0;
-      list-style: none;
+    &:hover .banner-item__img {
+      transform: scale(1.04);
     }
+  }
 
-    .directions__item {
-      padding: 12px 0;
-      font-size: 15px;
-      font-weight: 500;
-      color: var(--jv-text);
-      cursor: pointer;
-      border-bottom: 1px solid #d6e9e4;
-      transition: color 0.18s ease;
-
-      &:hover {
-        color: var(--jv-primary);
-      }
-
-      &:nth-last-child(-n + 2) {
-        border-bottom: none;
-      }
-    }
-
-    .directions__more {
-      margin-top: 16px;
-      font-size: 12px;
-      font-weight: 600;
-
-      --el-link-text-color: var(--jv-primary);
-      --el-link-hover-text-color: #006b66;
-    }
+  .banner-item__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.35s ease;
   }
 
   @media (max-width: 1199.98px) {
     .hero__inner {
-      grid-template-columns: minmax(0, 1fr) 320px;
-      gap: 24px;
+      grid-template-columns: minmax(0, 1fr) 440px;
+      gap: 28px;
     }
   }
 
@@ -510,10 +502,11 @@ const pickDirection = (word: string) => {
       padding-bottom: 32px;
     }
 
-    .hero__directions {
-      padding: 24px 0 0;
+    .hero__banners {
+      width: 100%;
+      max-width: 680px;
       margin-top: 28px;
-      border-left: none;
+      border-radius: 12px;
     }
   }
 

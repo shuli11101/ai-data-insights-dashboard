@@ -316,7 +316,7 @@ const conversationId = ref('')
 /** 后端 scene 到页面分析方式的映射：多轮对话统一归到 AI 对话 */
 const sceneToMode = (scene: string): AnalysisMode => {
   if (scene === 'skill') return '1'
-  if (scene === 'jd') return '2'
+  if (scene === 'jd' || scene === 'jdDesc') return '2'
   return '3'
 }
 
@@ -633,7 +633,7 @@ const welcomeTitle = computed(() => {
 
 const welcomeDesc = computed(() => {
   if (activeTab.value === '1')
-    return '写下你的技术栈、项目经验和求职意向，AI 会给出匹配度、薪资区间和技能补齐建议。'
+    return '写下你的技术栈、项目经验和求职意向，AI 会给出竞争力评分、市场定位、薪资区间和能力雷达。'
   if (activeTab.value === '3')
     return '求职、工作、生活里的事都可以聊，也可以让 AI 帮你分析分析、出出主意。'
   return '把岗位描述粘贴到下方输入框，AI 会拆解岗位要求、隐藏信息与面试准备方向。'

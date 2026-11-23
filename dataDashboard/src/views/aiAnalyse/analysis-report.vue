@@ -23,91 +23,9 @@
       <span></span>
     </div>
 
-    <!-- 技术栈分析 -->
+    <!-- 个人技能评估 -->
     <template v-if="mode === '1' && !refused && !error">
-      <div class="report__metrics">
-        <section class="report__score">
-          <span class="report__label">匹配度评分</span>
-          <strong class="report__score-value">{{ matchScore }}%</strong>
-          <p class="report__hint">{{ scoreHint }}</p>
-        </section>
-
-        <section class="report__above">
-          <span class="report__label">超越比例</span>
-          <strong class="report__above-value">{{ abovePercent }}%</strong>
-          <p class="report__hint">超过同岗位求职者</p>
-          <div class="report__bar">
-            <span :style="{ width: `${abovePercent}%` }"></span>
-          </div>
-        </section>
-      </div>
-
-      <div class="report__body">
-        <div class="report__col">
-          <section class="report-block">
-            <h2 class="report-block__title">
-              目标岗位与薪资
-            </h2>
-            <div class="report__facts">
-              <div class="report__fact">
-                <span class="report__label">目标岗位</span>
-                <strong>{{ targetJob || '—' }}</strong>
-              </div>
-              <div class="report__fact">
-                <span class="report__label">月薪预估</span>
-                <strong>{{ salaryRange || '—' }}</strong>
-              </div>
-              <div class="report__fact">
-                <span class="report__label">市场中位数</span>
-                <strong>{{ salaryMedian || '—' }}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section class="report-block">
-            <h2 class="report-block__title">
-              求职建议
-            </h2>
-            <ol v-if="jobAdvice.length" class="report-list">
-              <li v-for="(text, index) in jobAdvice" :key="text" class="report-item">
-                <span class="report-item__index">{{ index + 1 }}</span>
-                <span>{{ text }}</span>
-              </li>
-            </ol>
-            <p v-else class="report__empty">—</p>
-          </section>
-        </div>
-
-        <div class="report__col">
-          <section class="report-block">
-            <h2 class="report-block__title">
-              核心优势
-              <span class="report-block__count">{{ coreAdvantages.length }} 项</span>
-            </h2>
-            <ul v-if="coreAdvantages.length" class="report-list">
-              <li v-for="text in coreAdvantages" :key="text" class="report-item">
-                <span class="report-item__dot"></span>
-                <span>{{ text }}</span>
-              </li>
-            </ul>
-            <p v-else class="report__empty">暂未识别到明显优势</p>
-          </section>
-
-          <section class="report-block">
-            <h2 class="report-block__title">
-              待补充技能
-              <span class="report-block__count">{{ skillGaps.length }} 项</span>
-            </h2>
-            <ul v-if="skillGaps.length" class="report-list">
-              <li v-for="text in skillGaps" :key="text" class="report-item">
-                <span class="report-item__dot report-item__dot--warm"></span>
-                <span>{{ text }}</span>
-              </li>
-            </ul>
-            <p v-else class="report__empty">补充技术栈后，这里会列出优先补齐的技能。</p>
-          </section>
-        </div>
-      </div>
+      <SkillReport v-if="sections.length" :sections="sections" />
     </template>
 
     <!-- JD 岗位拆解 -->
@@ -178,12 +96,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import {
-  sectionItems,
-  sectionNumber,
-  sectionText,
-} from '@/utils/aiText'
+import { sectionItems } from '@/utils/aiText'
 import type { AISection } from '@/utils/aiText'
+
+import SkillReport from './skill-report.vue'
 
 const props = defineProps<{
   /** 1 = 技术栈分析，2 = JD 岗位拆解 */
@@ -200,31 +116,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ restart: [] }>()
 
-// 进度条与百分比不允许超过 100
-const clampPercent = (value: number) => Math.min(100, Math.max(0, value))
-
 const modeTitle = computed(() => (props.mode === '1' ? '技术栈分析' : 'JD 岗位拆解'))
 const resultTitle = computed(() => (props.mode === '1' ? '你的匹配结果' : '岗位拆解结果'))
 const resultSub = computed(() =>
   props.mode === '1' ? '基于当前简历与岗位 JD 综合生成' : '基于岗位 JD 拆解生成',
 )
-
-// ---------- 技术栈分析 ----------
-const matchScore = computed(() => clampPercent(sectionNumber(props.sections, '匹配度评分')))
-const abovePercent = computed(() => clampPercent(sectionNumber(props.sections, '超越比例')))
-const salaryRange = computed(() => sectionText(props.sections, '薪资预估'))
-const targetJob = computed(() => sectionText(props.sections, '目标岗位'))
-const salaryMedian = computed(() => sectionText(props.sections, '市场中位数'))
-const coreAdvantages = computed(() => sectionItems(props.sections, '核心优势'))
-const skillGaps = computed(() => sectionItems(props.sections, '待补充技能'))
-const jobAdvice = computed(() => sectionItems(props.sections, '求职建议'))
-
-const scoreHint = computed(() => {
-  if (matchScore.value >= 80) return '匹配度很高，可以优先投递这类岗位。'
-  if (matchScore.value >= 60) return '整体匹配，补齐关键技能后竞争力更强。'
-  if (matchScore.value > 0) return '匹配较低，建议优先补齐待补充技能。'
-  return '补充技术栈后，这里会生成匹配度评分。'
-})
 
 // ---------- JD 岗位拆解 ----------
 const JD_BASIC_FIELDS = ['职位名称', '所属部门', '工作地点', '薪资范围']
@@ -376,13 +272,6 @@ const tagStyle = (text: string) => {
   background: #fef2f2;
 }
 
-.report__empty {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 20px;
-  color: #a1acb3;
-}
-
 /* 流式输出前的等待动画 */
 .ai-typing {
   display: flex;
@@ -422,72 +311,6 @@ const tagStyle = (text: string) => {
   }
 }
 
-/* ---------- 匹配度 / 超越比例 ---------- */
-.report__metrics {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 40px;
-  padding: 28px 0 30px;
-  margin-top: 24px;
-  border-top: 1px solid var(--report-border);
-  border-bottom: 1px solid var(--report-border);
-}
-
-.report__label {
-  display: block;
-  font-size: 11.5px;
-  line-height: 18px;
-  color: #78868f;
-}
-
-.report__score-value {
-  display: block;
-  margin-top: 6px;
-  font-size: 80px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -3px;
-  color: var(--report-primary);
-}
-
-.report__above {
-  padding-left: 40px;
-  border-left: 1px solid var(--report-border);
-}
-
-.report__above-value {
-  display: block;
-  margin-top: 8px;
-  font-size: 44px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -1.4px;
-  color: var(--report-ink);
-}
-
-.report__hint {
-  margin: 10px 0 0;
-  font-size: 12.5px;
-  line-height: 20px;
-  color: var(--report-muted);
-}
-
-.report__bar {
-  height: 3px;
-  margin-top: 16px;
-  overflow: hidden;
-  background: #e4edea;
-  border-radius: 2px;
-
-  span {
-    display: block;
-    height: 100%;
-    background: var(--report-primary);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-  }
-}
-
 /* ---------- 两列内容 ---------- */
 .report__body {
   display: grid;
@@ -514,83 +337,6 @@ const tagStyle = (text: string) => {
   line-height: 26px;
   letter-spacing: -0.3px;
   color: var(--report-ink);
-}
-
-.report-block__count {
-  font-size: 11.5px;
-  font-weight: 400;
-  color: var(--report-faint);
-}
-
-.report__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 28px;
-}
-
-.report__fact {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 120px;
-
-  strong {
-    font-size: 20px;
-    font-weight: 500;
-    line-height: 28px;
-    color: var(--report-ink);
-  }
-}
-
-/* ---------- 列表 ---------- */
-.report-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.report-item {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  font-size: 13.5px;
-  line-height: 22px;
-  color: var(--report-text);
-
-  >span:last-child {
-    min-width: 0;
-  }
-}
-
-.report-item__dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  margin-top: 8px;
-  background: #2e9e6f;
-  border-radius: 50%;
-}
-
-.report-item__dot--warm {
-  background: #d98e2b;
-}
-
-.report-item__index {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--report-primary);
-  background: #e8f7f4;
-  border-radius: 50%;
 }
 
 /* ---------- JD：字段行 ---------- */
@@ -684,15 +430,9 @@ const tagStyle = (text: string) => {
     line-height: 34px;
   }
 
-  .report__metrics,
   .report__body {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
-  }
-
-  .report__above {
-    padding-left: 0;
-    border-left: 0;
   }
 }
 </style>

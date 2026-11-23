@@ -1,6 +1,6 @@
 <!--
   JD 岗位分析面板
-  - 调用与「AI 分析 - JD 岗位拆解」相同的接口（/api/ai/chat，scene: 'jd'）
+  - 调用 /api/ai/chat，scene: 'jdDesc'（输出小节与「AI 分析 - JD 岗位拆解」一致，入口独立便于区分统计）
   - 展示与 analysis-report.vue 的 JD 拆解结果完全一致：
     岗位基本信息 / 岗位职责 / 认知要求 / 隐藏信息 / 面试准备方向
   - mode="panel"：绝对定位，盖住所处的卡片；mode="page"：固定定位，盖住整个页面
@@ -259,7 +259,7 @@ const run = async () => {
     return
   }
 
-  await start({ scene: 'jd', input })
+  await start({ scene: 'jdDesc', input })
 }
 
 const close = () => {
