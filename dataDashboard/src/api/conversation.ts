@@ -1,6 +1,6 @@
 import { request } from '@/utils/request'
 
-/** 会话类型：chat 是多轮对话，其余场景（skill / jd / drawer / interpret）是单轮分析 */
+/** 会话类型：chat 是多轮对话，其余场景（skill / jd / jdDesc）是单轮分析 */
 export type ConversationType = 'single' | 'multi'
 
 /** 历史对话列表中的一行 */

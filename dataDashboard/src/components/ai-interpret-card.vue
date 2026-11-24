@@ -88,14 +88,19 @@ import { Close, List } from '@element-plus/icons-vue'
 import { useAIStream } from '@/composables/useAIStream'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { sectionNumber, sectionText } from '@/utils/aiText'
+import { formatSalary } from '@/utils/job'
 
 interface JobRow {
   id: number
   job_name: string
   company: string
-  salary_min: number
-  salary_max: number
+  /** 薪资展示文案，如 17-22K；面议时为「面议」 */
+  salary_desc?: string
+  /** 面议时 salary_min / salary_max 为 null */
+  salary_min: number | null
+  salary_max: number | null
   experience: string
+  degree?: string
   skill_tags: string[]
 }
 
@@ -154,7 +159,7 @@ const advice = computed(() => sectionText(sections.value, '建议'))
 // 把岗位信息作为补充信息一起提交，否则模型不知道在解读哪个岗位
 const jobInfo = computed(
   () =>
-    `岗位：${searchJobData.job_name}｜公司：${searchJobData.company}｜薪资：${searchJobData.salary_min}k-${searchJobData.salary_max}k｜经验要求：${searchJobData.experience}｜技能要求：${searchJobData.skill_tags.join('、')}`,
+    `岗位：${searchJobData.job_name}｜公司：${searchJobData.company}｜薪资：${formatSalary(searchJobData)}｜经验要求：${searchJobData.experience}｜技能要求：${searchJobData.skill_tags.join('、')}`,
 )
 
 /** 用户没输入分析需求时的默认诉求：点击表格行后直接用它发起分析 */
@@ -165,7 +170,7 @@ const startAnalysis = async () => {
   const input = prompt.value.trim() || DEFAULT_PROMPT
   await personalInfoStore.fetchPersonal()
   const context = [jobInfo.value, personalInfoStore.context].filter(Boolean).join('\n')
-  start({ scene: 'interpret', input, context })
+  start({ scene: 'jdDesc', input, context })
 }
 
 // 打开浮层、或切换到另一个岗位时自动发起分析，点击后直接出结果

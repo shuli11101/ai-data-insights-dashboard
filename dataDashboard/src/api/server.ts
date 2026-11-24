@@ -51,9 +51,13 @@ interface JobPosition {
   id: number
   job_name: string
   company: string
-  salary_min: number
-  salary_max: number
+  /** 薪资展示文案，如 17-22K；面议时为「面议」 */
+  salary_desc?: string
+  /** 面议时 salary_min / salary_max 为 null */
+  salary_min: number | null
+  salary_max: number | null
   experience: string
+  degree?: string
   skill_tags: string[]
 }
 
@@ -61,8 +65,8 @@ interface JobPosition {
 export interface JobDetail extends JobPosition {
   city: string
   district: string | null
-  publish_date: string | null
-  created_at: string
+  /** 岗位抓取时间，用于计算「发布于 x 天前」 */
+  crawled_at: string | null
   /** 当前登录用户是否已收藏；未登录固定为 false */
   favorited: boolean
 }

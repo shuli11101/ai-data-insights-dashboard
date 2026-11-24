@@ -95,8 +95,9 @@
 
           <footer class="jd__foot">
             <el-button class="jd__btn" @click="close">关闭</el-button>
-            <el-button v-if="loggedIn && job" class="jd__btn jd__btn--primary" :loading="loading" @click="run">
-              重新分析
+            <el-button v-if="loggedIn && job" class="jd__btn jd__btn--primary" :loading="loading"
+              :disabled="cooldown > 0" @click="run(true)">
+              {{ reanalyzeText }}
             </el-button>
             <el-button v-else-if="!loggedIn" class="jd__btn jd__btn--primary" @click="goLogin">去登录</el-button>
           </footer>
@@ -107,12 +108,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Close } from '@element-plus/icons-vue'
 
 import { useAIStream } from '@/composables/useAIStream'
 import { sectionItems } from '@/utils/aiText'
+import { formatSalary } from '@/utils/job'
 import { getToken } from '@/utils/token'
 import type { JobDetail } from '@/api/server'
 
@@ -157,7 +159,7 @@ const jdText = computed(() => {
     `职位名称：${job.job_name}`,
     `公司：${job.company}`,
     `工作地点：${location || '未提及'}`,
-    `薪资范围：${job.salary_min}k-${job.salary_max}k`,
+    `薪资范围：${formatSalary(job)}`,
     `经验要求：${job.experience || '未提及'}`,
     `技能标签：${job.skill_tags.join('、') || '未提及'}`,
   ].join('\n')
@@ -242,8 +244,8 @@ const open = () => {
   if (!applyPreset()) run()
 }
 
-/** 发起（或重新发起）JD 分析，请求方式与分析页的 JD 拆解一致 */
-const run = async () => {
+/** 发起（或重新发起）JD 分析，请求方式与分析页的 JD 拆解一致；manual 表示用户手动点了「重新分析」 */
+const run = async (manual = false) => {
   if (loading.value) return
 
   if (!getToken()) {
@@ -259,8 +261,37 @@ const run = async () => {
     return
   }
 
+  // 手动重新分析后进入 60s 冷却；打开面板时的自动分析不占用冷却
+  if (manual) startCooldown()
+
   await start({ scene: 'jdDesc', input })
 }
+
+/** 「重新分析」冷却秒数：避免短时间内反复触发 AI 分析 */
+const REANALYZE_COOLDOWN = 60
+const cooldown = ref(0)
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
+
+const stopCooldown = () => {
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+    cooldownTimer = null
+  }
+  cooldown.value = 0
+}
+
+const startCooldown = () => {
+  stopCooldown()
+  cooldown.value = REANALYZE_COOLDOWN
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1
+    if (cooldown.value <= 0) stopCooldown()
+  }, 1000)
+}
+
+const reanalyzeText = computed(() =>
+  cooldown.value > 0 ? `重新分析（${cooldown.value}s）` : '重新分析',
+)
 
 const close = () => {
   visible.value = false
@@ -281,11 +312,12 @@ watch(
   { immediate: true },
 )
 
-// 面板打开时切换岗位，重新分析
+// 面板打开时切换岗位，重新分析（清掉上一个岗位的冷却）
 watch(
   () => props.job?.id,
   () => {
     reset()
+    stopCooldown()
     if (visible.value) open()
   },
 )
@@ -298,7 +330,10 @@ watch(
   },
 )
 
-onBeforeUnmount(stop)
+onBeforeUnmount(() => {
+  stop()
+  stopCooldown()
+})
 </script>
 
 <style scoped lang="scss">
@@ -428,6 +463,13 @@ onBeforeUnmount(stop)
       --el-button-hover-border-color: #006b66;
       --el-button-active-bg-color: #00605c;
       --el-button-active-border-color: #00605c;
+
+      // 冷却倒计时禁用态：沿用主色的浅色版本，避免跳成 Element Plus 默认的蓝色系
+      &.is-disabled {
+        --el-button-disabled-text-color: #ffffff;
+        --el-button-disabled-bg-color: #9fcfca;
+        --el-button-disabled-border-color: #9fcfca;
+      }
     }
   }
 

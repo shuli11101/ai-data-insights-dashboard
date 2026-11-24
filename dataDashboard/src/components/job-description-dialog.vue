@@ -8,7 +8,7 @@
       <p class="job-desc__meta">
         <span>{{ job.company }}</span>
         <span class="job-desc__dot">·</span>
-        <span>{{ job.salary_min }}-{{ job.salary_max }}K</span>
+        <span>{{ formatSalary(job) }}</span>
         <span class="job-desc__dot">·</span>
         <span>{{ job.experience || '经验不限' }}</span>
       </p>
@@ -26,14 +26,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { formatSalary } from '@/utils/job'
+
 /** 岗位数据表格行 */
 interface JobRow {
   id: number
   job_name: string
   company: string
-  salary_min: number
-  salary_max: number
+  /** 薪资展示文案，如 17-22K；面议时为「面议」 */
+  salary_desc?: string
+  /** 面议时 salary_min / salary_max 为 null */
+  salary_min: number | null
+  salary_max: number | null
   experience: string
+  degree?: string
   skill_tags: string[]
 }
 

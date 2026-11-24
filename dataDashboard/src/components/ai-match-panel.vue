@@ -102,8 +102,9 @@
               @click="handleToggleSave">
               {{ saved ? '取消保存' : '保存分析报告' }}
             </el-button>
-            <el-button v-if="loggedIn" class="ai-match__btn" type="primary" :loading="loading" @click="run(true)">
-              重新分析
+            <el-button v-if="loggedIn" class="ai-match__btn" type="primary" :loading="loading"
+              :disabled="cooldown > 0" @click="run(true)">
+              {{ reanalyzeText }}
             </el-button>
             <el-button v-else class="ai-match__btn" type="primary" @click="goLogin">去登录</el-button>
           </footer>
@@ -170,6 +171,32 @@ let controller: AbortController | null = null
 /** 防抖：连续点击「重新分析」或快速开关面板时，短时间内只发起一次请求 */
 const MATCH_DEBOUNCE = 800
 let lastRunAt = 0
+
+/** 「重新分析」冷却秒数：避免短时间内反复触发 AI 分析 */
+const REANALYZE_COOLDOWN = 60
+const cooldown = ref(0)
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
+
+const stopCooldown = () => {
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+    cooldownTimer = null
+  }
+  cooldown.value = 0
+}
+
+const startCooldown = () => {
+  stopCooldown()
+  cooldown.value = REANALYZE_COOLDOWN
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1
+    if (cooldown.value <= 0) stopCooldown()
+  }, 1000)
+}
+
+const reanalyzeText = computed(() =>
+  cooldown.value > 0 ? `重新分析（${cooldown.value}s）` : '重新分析',
+)
 
 // ---------- 结果解析：与「个人技能评估」报告同一套小节结构 ----------
 const sections = computed(() => parseSections(content.value))
@@ -243,6 +270,7 @@ const reset = () => {
   saved.value = false
   // 切换岗位后允许立即发起新请求，不被上一个岗位的防抖窗口挡住
   lastRunAt = 0
+  stopCooldown()
 }
 
 /** 用外部传入的已保存报告直接渲染；没有则返回 false，交给接口分析 */
@@ -277,6 +305,9 @@ const run = async (force = false) => {
     error.value = '登录后才能分析匹配度'
     return
   }
+
+  // 手动点「重新分析」后进入 60s 冷却；打开面板时的自动分析不占用冷却
+  if (force) startCooldown()
 
   content.value = ''
   score.value = null
@@ -381,7 +412,10 @@ watch(
   },
 )
 
-onBeforeUnmount(stop)
+onBeforeUnmount(() => {
+  stop()
+  stopCooldown()
+})
 </script>
 
 <style scoped lang="scss">
@@ -501,6 +535,13 @@ onBeforeUnmount(stop)
       --el-button-hover-border-color: #006b66;
       --el-button-active-bg-color: #00605c;
       --el-button-active-border-color: #00605c;
+
+      // 冷却倒计时禁用态：沿用主色的浅色版本，避免跳成 Element Plus 默认的蓝色系
+      &.is-disabled {
+        --el-button-disabled-text-color: #ffffff;
+        --el-button-disabled-bg-color: #9fcfca;
+        --el-button-disabled-border-color: #9fcfca;
+      }
     }
   }
 

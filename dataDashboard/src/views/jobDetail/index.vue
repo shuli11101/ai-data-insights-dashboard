@@ -137,6 +137,7 @@ import {
   type JobDetail,
   type MatchReport,
 } from '@/api/server'
+import { formatSalary } from '@/utils/job'
 import { getToken } from '@/utils/token'
 
 /** 超过这个长度视为描述文本，其余当作技能标签（与岗位描述弹窗保持同一口径） */
@@ -160,7 +161,7 @@ const jdVisible = ref(false)
 /** 路由上的岗位 ID，非法值直接走错误态 */
 const jobId = computed(() => Number(route.params.id))
 
-const salaryText = computed(() => (job.value ? `${job.value.salary_min}–${job.value.salary_max}K` : ''))
+const salaryText = computed(() => (job.value ? formatSalary(job.value) : ''))
 
 const locationText = computed(() => {
   if (!job.value) return ''
@@ -188,9 +189,9 @@ const reportSummary = computed(() => {
   return (firstSentence || text).slice(0, 40)
 })
 
-/** 已发布时间：优先 publish_date，缺失时退回创建时间 */
+/** 已发布时间：详情接口返回 crawled_at */
 const publishText = computed(() => {
-  const raw = job.value?.publish_date || job.value?.created_at
+  const raw = job.value?.crawled_at
   if (!raw) return '发布时间未知'
 
   const date = new Date(raw)

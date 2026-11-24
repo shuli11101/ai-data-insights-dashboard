@@ -122,6 +122,7 @@ import { Search } from '@element-plus/icons-vue'
 import { getJobList } from '@/api/server'
 import { useCityStore } from '@/stores/city'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
+import { formatSalary } from '@/utils/job'
 
 import CityAutocomplete from '@/components/city-autocomplete.vue'
 import SidePanel from '@/components/home/side-panel.vue'
@@ -224,7 +225,7 @@ const fetchJobList = async () => {
     const list = res.list.map((item) => ({
       id: item.id,
       title: item.job_name,
-      salary: `${item.salary_min}–${item.salary_max}K`,
+      salary: formatSalary(item),
       // jobList 不返回地区字段，这里用请求时筛选的城市展示
       region: cityFilter.value || '地区不限',
       company: item.company,
@@ -477,6 +478,22 @@ const pickDirection = (word: string) => {
     &:hover .banner-item__img {
       transform: scale(1.04);
     }
+
+    // 新增白色边框间隔
+    &:nth-child(1) {
+      margin-right: 1px;
+      margin-bottom: 1px;
+    }
+
+    &:nth-child(2) {
+      margin-bottom: 1px;
+    }
+
+    &:nth-child(3) {
+      margin-right: 1px;
+    }
+
+    &:nth-child(4) {}
   }
 
   .banner-item__img {

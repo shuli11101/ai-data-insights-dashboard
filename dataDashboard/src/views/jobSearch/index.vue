@@ -155,15 +155,20 @@ import { getToken } from '@/utils/token'
 import AiMatchPanel from '@/components/ai-match-panel.vue'
 import CityAutocomplete from '@/components/city-autocomplete.vue'
 import JdDescriptionPanel from '@/components/jd-description-panel.vue'
+import { formatSalary as formatSalaryText } from '@/utils/job'
 
 /** 列表接口返回的岗位行（比详情少了城市等字段） */
 interface JobRow {
   id: number
   job_name: string
   company: string
-  salary_min: number
-  salary_max: number
+  /** 薪资展示文案，如 17-22K；面议时为「面议」 */
+  salary_desc?: string
+  /** 面议时 salary_min / salary_max 为 null */
+  salary_min: number | null
+  salary_max: number | null
   experience: string
+  degree?: string
   skill_tags: string[]
 }
 
@@ -265,7 +270,7 @@ const allTags = computed(() => detail.value?.skill_tags ?? [])
 const descriptionLines = computed(() => allTags.value.filter((tag) => tag.length >= DESCRIPTION_MIN_LENGTH))
 const shortTags = computed(() => allTags.value.filter((tag) => tag.length < DESCRIPTION_MIN_LENGTH))
 
-const formatSalary = (job: JobRow) => `${job.salary_min}–${job.salary_max}K`
+const formatSalary = (job: JobRow) => formatSalaryText(job)
 
 const formatTag = (tag: string) =>
   tag.length > MAX_TAG_LENGTH ? `${tag.slice(0, MAX_TAG_LENGTH - 3)}...` : tag

@@ -1,6 +1,6 @@
 import { getToken } from '@/utils/token'
 
-export type AiScene = 'drawer' | 'interpret' | 'skill' | 'jd' | 'jdDesc' | 'chat'
+export type AiScene = 'skill' | 'jd' | 'jdDesc' | 'chat'
 
 /** 多轮对话消息：role 只允许 user / assistant，system 由服务端拼装 */
 export interface AiMessage {
