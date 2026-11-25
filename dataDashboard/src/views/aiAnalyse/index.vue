@@ -412,7 +412,8 @@ const startAnalysis = async () => {
   }
 
   currentPrompt.value = text
-  scrollToBottom(true)
+  // 单轮报告从头展示，不跟随流式内容
+  scrollToTop()
 
   await start({
     scene: mode === '1' ? 'skill' : 'jd',
@@ -502,7 +503,9 @@ const openHistory = async (item: HistoryItem, detail?: ConversationDetail) => {
       currentPrompt.value = lastUser?.content ?? ''
       raw.value = lastAssistant?.content ?? ''
     }
-    scrollToBottom()
+    // 多轮对话停在最新消息；单轮报告回到开头
+    if (item.mode === '3') scrollToBottom()
+    else scrollToTop()
   } catch (err) {
     if (seq !== requestSeq) return
     error.value = err instanceof Error ? err.message : '历史记录加载失败'
@@ -613,9 +616,16 @@ const scrollToBottom = async (smooth = false) => {
   el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
 }
 
-// 流式输出时跟随滚动；用户主动往上翻时不打扰
+/** 回到容器顶部：单轮报告从开头展示，避免停在报告末尾 */
+const scrollToTop = async () => {
+  await nextTick()
+  scrollEl.value?.scrollTo({ top: 0 })
+}
+
+// 流式输出时跟随滚动，仅多轮对话需要；单轮报告不跟随，避免一路追到报告末尾
+// 用户主动往上翻时同样不打扰
 watch([raw, loading, error], () => {
-  if (isNearBottom()) scrollToBottom()
+  if (activeTab.value === '3' && isNearBottom()) scrollToBottom()
 })
 
 // ---------- 页面文案 ----------

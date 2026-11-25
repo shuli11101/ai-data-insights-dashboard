@@ -39,8 +39,11 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 # CloudBase 云函数构建产物
-cloudbase/index.js
+cloudbase/
 cloudbase-deploy.zip
+
+# Node 服务已迁出本仓库（保留忽略，避免误提交回来）
+server/
 
 # 环境变量
 .env
