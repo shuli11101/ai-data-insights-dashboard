@@ -1,7 +1,7 @@
 <template>
   <!--
     岗位工作描述弹窗
-    库里没有独立的描述字段，长文本混在 skill_tags 中，这里按长度拆出来展示
+    库里没有独立的描述字段，长文本混在 tags_all 中，这里按长度拆出来展示
   -->
   <el-dialog v-model="visible" class="job-desc" width="680px" :title="job?.job_name ?? ''" append-to-body>
     <div v-if="job" class="job-desc__body">
@@ -40,7 +40,7 @@ interface JobRow {
   salary_max: number | null
   experience: string
   degree?: string
-  skill_tags: string[]
+  tags_all: string[]
 }
 
 const props = defineProps<{
@@ -55,7 +55,7 @@ const visible = defineModel<boolean>({ default: false })
 const DESCRIPTION_MIN_LENGTH = 10
 
 const description = computed(() =>
-  (props.job?.skill_tags ?? []).filter((tag) => tag.length >= DESCRIPTION_MIN_LENGTH),
+  (props.job?.tags_all ?? []).filter((tag) => tag.length >= DESCRIPTION_MIN_LENGTH),
 )
 </script>
 

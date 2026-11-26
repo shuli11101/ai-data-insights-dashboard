@@ -132,7 +132,7 @@
             </div>
 
             <div class="intent-grid">
-              <el-form-item label="当前薪资（税前）">
+              <el-form-item label="当前薪资（税前）" prop="currentSalary">
                 <div class="salary-field">
                   <el-input-number :model-value="currentSalaryDisplay" class="w-full" :min="0" :controls="false"
                     :step="1" :precision="0" placeholder="请填写当前薪资" @update:model-value="updateCurrentSalary" />
@@ -140,7 +140,7 @@
                 </div>
               </el-form-item>
 
-              <el-form-item label="意向薪资（税前）">
+              <el-form-item label="意向薪资（税前）" prop="expectedSalary">
                 <div class="salary-field">
                   <el-input-number :model-value="expectedSalaryDisplay" class="w-full" :min="0" :controls="false"
                     :step="1" :precision="0" placeholder="请填写意向薪资" @update:model-value="updateExpectedSalary" />
@@ -157,7 +157,8 @@
           <span class="save-bar__hint">修改会同步至 AI 分析与职位推荐。</span>
           <div class="save-bar__actions">
             <el-button class="ghost-btn" @click="handleReset">取消</el-button>
-            <el-button type="primary" class="save-bar__submit" :loading="savingIntent" @click="handleSubmit">保存修改</el-button>
+            <el-button type="primary" class="save-bar__submit" :loading="savingIntent"
+              @click="handleSubmit">保存修改</el-button>
           </div>
         </footer>
       </section>
@@ -167,7 +168,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormItemRule, type FormRules } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { getKeywords, updateUserProfile, uploadAvatar } from '@/api/server'
@@ -250,16 +251,13 @@ const formBackup = reactive({
 
 const formRef = ref<FormInstance>()
 
-const rules: FormRules = {
-  experience: [{ required: true, message: '请选择工作经验', trigger: 'submit' }],
-  skills: [{ required: true, type: 'array', message: '请至少选择一项技术', trigger: 'submit' }],
-  city: [{ required: true, message: '请选择意向城市', trigger: 'submit' }],
-}
-
 // ---------- 薪资单位：内部始终存「元/月」，展示时按所选单位换算 ----------
 const salaryUnit = ref<'month' | 'year'>('month')
 
 const salaryUnitLabel = computed(() => (salaryUnit.value === 'month' ? 'K/月' : 'K/年'))
+
+/** 后端薪资字段为 int，最大值 2,147,483,647 元/月 */
+const SALARY_MAX = 2_147_483_647
 
 /** 元/月 → 展示值（千元） */
 const toDisplay = (monthly?: number) => {
@@ -268,10 +266,30 @@ const toDisplay = (monthly?: number) => {
   return Math.round(value / 1000)
 }
 
-/** 展示值（千元）→ 元/月 */
+/** 展示值（千元）→ 元/月；超限由表单校验拦截 */
 const fromDisplay = (value?: number | null) => {
   if (value == null) return undefined
   return salaryUnit.value === 'month' ? value * 1000 : Math.round((value * 1000) / 12)
+}
+
+/** 薪资上限校验：后端字段为 int，超过 2,147,483,647 元/月直接提示错误 */
+const salaryLimitRule: FormItemRule = {
+  validator: (_rule, value, callback) => {
+    if (value == null || value <= SALARY_MAX) {
+      callback()
+      return
+    }
+    callback(new Error(`薪资超出上限`))
+  },
+  trigger: 'change',
+}
+
+const rules: FormRules = {
+  experience: [{ required: true, message: '请选择工作经验', trigger: 'submit' }],
+  skills: [{ required: true, type: 'array', message: '请至少选择一项技术', trigger: 'submit' }],
+  city: [{ required: true, message: '请选择意向城市', trigger: 'submit' }],
+  currentSalary: [salaryLimitRule],
+  expectedSalary: [salaryLimitRule],
 }
 
 const currentSalaryDisplay = computed(() => toDisplay(form.currentSalary))
@@ -811,6 +829,7 @@ const goLogin = () => router.push('/login')
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 1023.98px) {
+
   /* 窄屏两栏上下堆叠，整页一起滚动 */
   .personal-info__layout {
     flex-direction: column;

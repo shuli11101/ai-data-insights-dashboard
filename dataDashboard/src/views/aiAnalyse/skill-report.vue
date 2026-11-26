@@ -265,11 +265,11 @@ const planItems = computed(() =>
 
 /* ---------- 评分 + 市场定位 ---------- */
 .skill-hero {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   align-items: center;
-  padding: 24px 0 28px;
+  padding: 28px 0 32px;
   border-top: 1px solid var(--skill-border);
   border-bottom: 1px solid var(--skill-border);
 }
@@ -278,7 +278,7 @@ const planItems = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .skill-hero__value {
@@ -301,7 +301,10 @@ const planItems = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 10px;
+  align-items: center;
+  max-width: 640px;
   min-width: 0;
+  text-align: center;
 }
 
 .skill-hero__sentence {
@@ -435,11 +438,6 @@ const planItems = computed(() =>
 }
 
 @media (max-width: 960px) {
-  .skill-hero {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-
   .skill-tags {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

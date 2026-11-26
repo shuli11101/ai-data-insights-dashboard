@@ -12,13 +12,14 @@ export const register = (body: RegisterParams): Promise<{ token: string }> => {
   return request<{ token: string }>('/auth/register', { method: 'post', data: body })
 }
 
-/** 登录参数 */
+/** 登录参数：密码登录传 password，验证码登录传 code */
 export interface LoginParams {
   phone: string
-  password: string
+  password?: string
+  code?: string
 }
 
-// 登录：手机号 + 密码，成功后返回 token
+// 登录：手机号 + 密码 / 手机号 + 短信验证码，成功后返回 token
 export const login = (body: LoginParams): Promise<{ token: string }> => {
   return request<{ token: string }>('/auth/login', { method: 'post', data: body })
 }
@@ -26,6 +27,19 @@ export const login = (body: LoginParams): Promise<{ token: string }> => {
 // 发送短信验证码：传入手机号，验证码由服务端下发
 export const sendSmsCode = (phone: string): Promise<void> => {
   return request<void>('/auth/sms-code', { method: 'post', data: { phone } })
+}
+
+/** 重置密码参数：手机号 + 短信验证码 + 新密码 + 确认新密码 */
+export interface ResetPasswordParams {
+  phone: string
+  code: string
+  newPassword: string
+  confirmPassword: string
+}
+
+// 重置密码：验证短信验证码后更新密码
+export const resetPassword = (body: ResetPasswordParams): Promise<void> => {
+  return request<void>('/auth/reset-password', { method: 'post', data: body })
 }
 
 /** 当前登录用户的账号信息 */
@@ -58,13 +72,16 @@ interface JobPosition {
   salary_max: number | null
   experience: string
   degree?: string
-  skill_tags: string[]
+  /** 岗位的全部标签（技能 + 描述片段），列表和详情统一用这个字段 */
+  tags_all: string[]
 }
 
 /** 岗位详情：GET /home/jobDetail 返回的完整字段 */
 export interface JobDetail extends JobPosition {
   city: string
   district: string | null
+  /** 岗位描述正文；缺失时前端回退到 tags_all 中的长文本 */
+  jd?: string | null
   /** 岗位抓取时间，用于计算「发布于 x 天前」 */
   crawled_at: string | null
   /** 当前登录用户是否已收藏；未登录固定为 false */
@@ -104,9 +121,32 @@ export const uploadAvatar = (file: File): Promise<{ url: string }> => {
   return request<{ url: string }>('/user/avatar', { method: 'post', data })
 }
 
+/** 岗位列表分页参数 */
+export interface JobListParams {
+  page: number
+  size: number
+  city: string
+  experienceMin: string
+  experienceMax: string
+  salaryMin: string
+  salaryMax: string
+  keyword: string
+  jobName: string
+  /** 首屏不传；翻页时原样带回首屏返回的 seed，否则每页顺序会重算 */
+  seed?: string | number
+}
+
+export interface JobListResult {
+  list: JobPosition[]
+  /** 后端已按上限截断的总数（min(总数, 5000)），分页按它渲染不会有空白页 */
+  total: number
+  /** 分页随机种子：刷新页面不传 seed 时由后端重新生成 */
+  seed: string | number
+}
+
 // 获取岗位数据
-export const getJobList = (params: { page: number; size: number, city: string, experienceMin: string, experienceMax: string, salaryMin: string, salaryMax: string, keyword: string, jobName: string }): Promise<{ list: JobPosition[], total: number }> => {
-  return request<{ list: JobPosition[], total: number }>('/home/jobList', { params })
+export const getJobList = (params: JobListParams): Promise<JobListResult> => {
+  return request<JobListResult>('/home/jobList', { params })
 }
 
 // 获取岗位详情（带合法 token 时额外返回 favorited）
@@ -119,11 +159,11 @@ export const addFavorite = (jobId: number): Promise<{ added: boolean, favoriteCo
   return request<{ added: boolean, favoriteCount: number }>('/user/favorite', { method: 'post', data: { jobId } })
 }
 
-// 取消收藏：返回 { removed, favoriteCount }
+// 取消收藏：返回 { removed, favoriteCount }，jobId 放在请求体里
 export const removeFavorite = (jobId: number): Promise<{ removed: boolean, favoriteCount: number }> => {
   return request<{ removed: boolean, favoriteCount: number }>('/user/favorite', {
     method: 'delete',
-    params: { jobId },
+    data: { jobId },
   })
 }
 

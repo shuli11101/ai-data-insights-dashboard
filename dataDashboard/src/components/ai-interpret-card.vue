@@ -101,7 +101,7 @@ interface JobRow {
   salary_max: number | null
   experience: string
   degree?: string
-  skill_tags: string[]
+  tags_all: string[]
 }
 
 interface Props {
@@ -159,7 +159,7 @@ const advice = computed(() => sectionText(sections.value, '建议'))
 // 把岗位信息作为补充信息一起提交，否则模型不知道在解读哪个岗位
 const jobInfo = computed(
   () =>
-    `岗位：${searchJobData.job_name}｜公司：${searchJobData.company}｜薪资：${formatSalary(searchJobData)}｜经验要求：${searchJobData.experience}｜技能要求：${searchJobData.skill_tags.join('、')}`,
+    `岗位：${searchJobData.job_name}｜公司：${searchJobData.company}｜薪资：${formatSalary(searchJobData)}｜经验要求：${searchJobData.experience}｜技能要求：${searchJobData.tags_all.join('、')}`,
 )
 
 /** 用户没输入分析需求时的默认诉求：点击表格行后直接用它发起分析 */

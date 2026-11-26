@@ -174,7 +174,7 @@ const metaText = computed(() => {
   return [locationText.value, job.value.experience].filter(Boolean).join('　　')
 })
 
-const allTags = computed(() => job.value?.skill_tags ?? [])
+const allTags = computed(() => job.value?.tags_all ?? [])
 const descriptionLines = computed(() => allTags.value.filter((tag) => tag.length >= DESCRIPTION_MIN_LENGTH))
 const shortTags = computed(() => allTags.value.filter((tag) => tag.length < DESCRIPTION_MIN_LENGTH))
 

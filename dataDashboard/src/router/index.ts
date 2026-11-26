@@ -15,6 +15,11 @@ const router = createRouter({
       component: () => import('@/views/register/index.vue'),
     },
     {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/resetPassword/index.vue'),
+    },
+    {
       path: '/',
       name: 'index',
       component: () => import('@/components/layout.vue'),
@@ -63,8 +68,17 @@ const router = createRouter({
         },
         {
           path: '/agreement',
-          name: 'agreement',
-          component: () => import('@/views/agreement/index.vue'),
+          redirect: '/agreement/user',
+        },
+        {
+          path: '/agreement/user',
+          name: 'user-agreement',
+          component: () => import('@/views/agreement/user.vue'),
+        },
+        {
+          path: '/agreement/privacy',
+          name: 'privacy-policy',
+          component: () => import('@/views/agreement/privacy.vue'),
         },
       ],
     },

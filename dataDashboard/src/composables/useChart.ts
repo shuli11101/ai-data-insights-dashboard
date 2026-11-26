@@ -1,6 +1,26 @@
 import { onBeforeUnmount, onMounted, ref, watchEffect, type Ref } from 'vue'
-import * as echarts from 'echarts'
+import { BarChart, PieChart, RadarChart } from 'echarts/charts'
+import {
+  GridComponent,
+  LegendComponent,
+  RadarComponent,
+  TooltipComponent,
+} from 'echarts/components'
+import * as echarts from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsOption } from 'echarts'
+
+// 按需注册：只打包项目实际用到的图表（柱状 / 环形 / 雷达）与组件
+echarts.use([
+  BarChart,
+  PieChart,
+  RadarChart,
+  GridComponent,
+  LegendComponent,
+  RadarComponent,
+  TooltipComponent,
+  CanvasRenderer,
+])
 
 /**
  * 把一个 div 变成 ECharts 图表容器，自动处理实例创建、尺寸自适应和销毁。

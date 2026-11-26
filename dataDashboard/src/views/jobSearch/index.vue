@@ -52,8 +52,8 @@
                 <span class="row__salary">{{ formatSalary(job) }}</span>
               </div>
 
-              <div v-if="job.skill_tags?.length" class="row__tags">
-                <span v-for="tag in job.skill_tags.slice(0, 3)" :key="tag" class="row__tag">{{ formatTag(tag) }}</span>
+              <div v-if="job.tags_all?.length" class="row__tags">
+                <span v-for="tag in job.tags_all.slice(0, 3)" :key="tag" class="row__tag">{{ formatTag(tag) }}</span>
               </div>
 
               <div class="row__bottom">
@@ -169,7 +169,7 @@ interface JobRow {
   salary_max: number | null
   experience: string
   degree?: string
-  skill_tags: string[]
+  tags_all: string[]
 }
 
 /** 经验区间：value 用来放进 URL，同时映射到接口的 min / max */
@@ -206,6 +206,8 @@ const total = ref(0)
 const page = ref(1)
 const finished = ref(false)
 const loading = ref(false)
+/** 分页随机种子：首屏响应带回，加载更多时原样传回；重新搜索时由新响应覆盖 */
+const listSeed = ref<string | number | null>(null)
 
 const activeId = ref<number | null>(null)
 const detail = ref<JobDetail | null>(null)
@@ -266,8 +268,13 @@ const detailMeta = computed(() => {
   return [detailLocation.value, detail.value.experience].filter(Boolean).join('　　')
 })
 
-const allTags = computed(() => detail.value?.skill_tags ?? [])
-const descriptionLines = computed(() => allTags.value.filter((tag) => tag.length >= DESCRIPTION_MIN_LENGTH))
+const allTags = computed(() => detail.value?.tags_all ?? [])
+/** 职位描述：优先用接口返回的 jd 正文，缺失时兼容旧数据（长文本混在 tags_all 里） */
+const descriptionLines = computed(() => {
+  const jd = detail.value?.jd?.trim()
+  if (jd) return jd.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  return allTags.value.filter((tag) => tag.length >= DESCRIPTION_MIN_LENGTH)
+})
 const shortTags = computed(() => allTags.value.filter((tag) => tag.length < DESCRIPTION_MIN_LENGTH))
 
 const formatSalary = (job: JobRow) => formatSalaryText(job)
@@ -325,7 +332,11 @@ const fetchJobs = async (targetPage: number, append: boolean) => {
       salaryMax: salary?.max ?? '',
       keyword: keywordInput.value.trim(),
       jobName: '',
+      // 翻页必须带首屏的 seed，否则每页顺序会重算，出现重复 / 漏项
+      seed: append && listSeed.value != null ? listSeed.value : undefined,
     })
+
+    listSeed.value = res.seed ?? null
 
     jobs.value = append ? [...jobs.value, ...res.list] : res.list
     total.value = res.total
@@ -434,6 +445,8 @@ watch(
     detail.value = null
     page.value = 1
     finished.value = false
+    // 换了搜索条件就是新的一批结果：清掉旧 seed，由首屏响应重新下发
+    listSeed.value = null
     fetchJobs(1, false)
   },
   { immediate: true },

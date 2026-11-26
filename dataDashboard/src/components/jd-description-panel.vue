@@ -161,7 +161,7 @@ const jdText = computed(() => {
     `工作地点：${location || '未提及'}`,
     `薪资范围：${formatSalary(job)}`,
     `经验要求：${job.experience || '未提及'}`,
-    `技能标签：${job.skill_tags.join('、') || '未提及'}`,
+    `技能标签：${job.tags_all.join('、') || '未提及'}`,
   ].join('\n')
 })
 

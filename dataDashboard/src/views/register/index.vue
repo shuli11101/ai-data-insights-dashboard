@@ -178,9 +178,9 @@
 
         <el-checkbox v-model="agreed" class="register__agree">
           我已阅读并同意
-          <span class="register__agree-link">《用户协议》</span>
+          <router-link class="register__agree-link" to="/agreement/user" @click.stop>《用户协议》</router-link>
           和
-          <span class="register__agree-link">《隐私政策》</span>
+          <router-link class="register__agree-link" to="/agreement/privacy" @click.stop>《隐私政策》</router-link>
         </el-checkbox>
 
         <el-button type="primary" class="register__submit" :loading="submitting" @click="handleRegister">
@@ -686,7 +686,14 @@ const handleRegister = async () => {
   &__agree-link {
     color: #3d4b54;
     cursor: pointer;
+    text-decoration: none;
     border-bottom: 1px solid #cbd5d6;
+    transition: color 0.2s ease, border-color 0.2s ease;
+
+    &:hover {
+      color: #007c77;
+      border-bottom-color: #007c77;
+    }
   }
 
   &__submit {

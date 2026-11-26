@@ -141,6 +141,14 @@
         </div>
         <p class="login__subtitle">用手机号继续，查看你的求职分析。</p>
 
+        <!-- 登录方式切换：密码 / 短信验证码 -->
+        <div class="login__tabs">
+          <button v-for="tab in LOGIN_TABS" :key="tab.value" type="button" class="login__tab"
+            :class="{ 'is-active': loginMode === tab.value }" @click="loginMode = tab.value">
+            {{ tab.label }}
+          </button>
+        </div>
+
         <div class="login__field">
           <div class="login__field-head">
             <label class="login__field-label">手机号</label>
@@ -154,20 +162,36 @@
           </el-input>
         </div>
 
-        <div class="login__field">
+        <div v-if="loginMode === 'password'" class="login__field">
           <div class="login__field-head">
             <label class="login__field-label">密码</label>
-            <span class="login__field-hint">忘记密码？</span>
+            <router-link class="login__field-hint login__field-hint--link" to="/reset-password">忘记密码？</router-link>
           </div>
           <el-input v-model="password" class="login__input" type="password" show-password maxlength="32"
             placeholder="请输入登录密码" />
         </div>
 
+        <div v-else class="login__field">
+          <div class="login__field-head">
+            <label class="login__field-label">短信验证码</label>
+            <span class="login__field-hint">6 位数字</span>
+          </div>
+          <el-input v-model="code" class="login__input" maxlength="6" placeholder="请输入验证码">
+            <template #suffix>
+              <span class="login__sep login__sep--suffix"></span>
+              <el-button link class="login__code-btn" :disabled="countdown > 0 || sendingCode"
+                @click="handleSendCode">
+                {{ countdown > 0 ? `${countdown}s 后重新获取` : codeSent ? '重新获取' : '获取验证码' }}
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+
         <el-checkbox v-model="agreed" class="login__agree">
           我已阅读并同意
-          <span class="login__agree-link">《用户协议》</span>
+          <router-link class="login__agree-link" to="/agreement/user" @click.stop>《用户协议》</router-link>
           和
-          <span class="login__agree-link">《隐私政策》</span>
+          <router-link class="login__agree-link" to="/agreement/privacy" @click.stop>《隐私政策》</router-link>
         </el-checkbox>
 
         <el-button type="primary" class="login__submit" :loading="submitting" @click="handleLogin">
@@ -195,12 +219,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { ElMessage } from 'element-plus'
 
-import { login } from '@/api/server'
+import { login, sendSmsCode } from '@/api/server'
 import { usePersonalInfoStore } from '@/stores/personalInfo'
 import { useUserStore } from '@/stores/user'
 import { setToken } from '@/utils/token'
@@ -214,20 +238,93 @@ const password = ref('')
 const agreed = ref(false)
 const submitting = ref(false)
 
+// ---------- 登录方式：密码 / 短信验证码 ----------
+type LoginMode = 'password' | 'code'
+const LOGIN_TABS: { value: LoginMode; label: string }[] = [
+  { value: 'password', label: '密码登录' },
+  { value: 'code', label: '验证码登录' },
+]
+const loginMode = ref<LoginMode>('password')
+const code = ref('')
+/** 是否已点击「获取验证码」 */
+const codeSent = ref(false)
+/** 请求发送验证码中，防止重复点击 */
+const sendingCode = ref(false)
+/** 验证码倒计时（秒），大于 0 时按钮不可点 */
+const countdown = ref(0)
+let countdownTimer: number | undefined
+
+/** 清理倒计时计时器 */
+const stopCountdown = () => {
+  if (countdownTimer !== undefined) {
+    window.clearInterval(countdownTimer)
+    countdownTimer = undefined
+  }
+}
+
+/** 启动倒计时 */
+const startCountdown = (seconds = 60) => {
+  stopCountdown()
+  countdown.value = seconds
+  countdownTimer = window.setInterval(() => {
+    countdown.value -= 1
+    if (countdown.value <= 0) {
+      countdown.value = 0
+      stopCountdown()
+    }
+  }, 1000)
+}
+
+/** 点击获取验证码：调 /api/auth/sms-code 发送短信，成功后开始倒计时 */
+const handleSendCode = async () => {
+  if (countdown.value > 0 || sendingCode.value) return
+
+  const phoneText = phone.value.trim()
+  if (!/^1[3-9]\d{9}$/.test(phoneText)) {
+    ElMessage.warning('请输入正确的手机号')
+    return
+  }
+
+  sendingCode.value = true
+  try {
+    await sendSmsCode(phoneText)
+    codeSent.value = true
+    startCountdown()
+    ElMessage.success('验证码已发送')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '验证码发送失败，请稍后重试')
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+onBeforeUnmount(stopCountdown)
+
 /** 点击登录：校验 → 调 /api/auth/login → 存 token → 回首页 */
 const handleLogin = async () => {
   if (submitting.value) return
 
   const phoneText = phone.value.trim()
   const passwordText = password.value
+  const codeText = code.value.trim()
 
   if (!/^1[3-9]\d{9}$/.test(phoneText)) {
     ElMessage.warning('请输入正确的手机号')
     return
   }
-  if (!passwordText) {
+  if (loginMode.value === 'password' && !passwordText) {
     ElMessage.warning('请输入登录密码')
     return
+  }
+  if (loginMode.value === 'code') {
+    if (!codeText) {
+      ElMessage.warning('请输入短信验证码')
+      return
+    }
+    if (!/^\d{4,6}$/.test(codeText)) {
+      ElMessage.warning('验证码格式不正确')
+      return
+    }
   }
   if (!agreed.value) {
     ElMessage.warning('请先阅读并同意《用户协议》和《隐私政策》')
@@ -236,7 +333,10 @@ const handleLogin = async () => {
 
   submitting.value = true
   try {
-    const { token } = await login({ phone: phoneText, password: passwordText })
+    const { token } =
+      loginMode.value === 'password'
+        ? await login({ phone: phoneText, password: passwordText })
+        : await login({ phone: phoneText, code: codeText })
     // token 存本地，之后所有请求由拦截器自动带 Authorization
     setToken(token)
 
@@ -474,6 +574,33 @@ const handleLogin = async () => {
     color: #65747c;
   }
 
+  /* 登录方式切换：无底色，仅用文字颜色和 2px 下划线区分当前项 */
+  &__tabs {
+    display: flex;
+    gap: 20px;
+    margin-top: 18px;
+    border-bottom: 1px solid #edf2f2;
+  }
+
+  &__tab {
+    padding: 0 0 10px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #8a979e;
+    cursor: pointer;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+
+    &.is-active {
+      font-weight: 600;
+      color: #007c77;
+      border-bottom-color: #007c77;
+    }
+  }
+
   &__field {
     margin-top: 22px;
 
@@ -499,6 +626,15 @@ const handleLogin = async () => {
   &__field-hint {
     font-size: 10.5px;
     color: #78868f;
+
+    &--link {
+      text-decoration: none;
+      transition: color 0.2s ease;
+
+      &:hover {
+        color: #007c77;
+      }
+    }
   }
 
   &__input {
@@ -549,6 +685,21 @@ const handleLogin = async () => {
     height: 24px;
     margin: 0 14px;
     background: #e3ebec;
+
+    &--suffix {
+      margin: 0 12px;
+    }
+  }
+
+  &__code-btn {
+    height: auto;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 600;
+
+    --el-button-text-color: #007c77;
+    --el-button-hover-link-text-color: #006b66;
+    --el-button-active-color: #006b66;
   }
 
   &__agree {
@@ -577,7 +728,14 @@ const handleLogin = async () => {
   &__agree-link {
     color: #3d4b54;
     cursor: pointer;
+    text-decoration: none;
     border-bottom: 1px solid #cbd5d6;
+    transition: color 0.2s ease, border-color 0.2s ease;
+
+    &:hover {
+      color: #007c77;
+      border-bottom-color: #007c77;
+    }
   }
 
   &__submit {

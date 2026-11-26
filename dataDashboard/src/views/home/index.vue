@@ -196,6 +196,8 @@ const jobList = ref<JobListItem[]>([])
 const jobListLoading = ref(false)
 const jobListFinished = ref(false)
 const jobListPage = ref(1)
+/** 分页随机种子：首屏响应带回，加载更多时原样传回 */
+const jobListSeed = ref<string | number | null>(null)
 const loadMoreRef = ref<HTMLElement | null>(null)
 let jobListObserver: IntersectionObserver | null = null
 
@@ -220,7 +222,11 @@ const fetchJobList = async () => {
       salaryMax: '',
       keyword: '',
       jobName: '',
+      // 翻页必须带首屏的 seed，保证同一批结果的顺序一致
+      seed: jobListPage.value > 1 && jobListSeed.value != null ? jobListSeed.value : undefined,
     })
+
+    jobListSeed.value = res.seed ?? null
 
     const list = res.list.map((item) => ({
       id: item.id,
@@ -229,7 +235,7 @@ const fetchJobList = async () => {
       // jobList 不返回地区字段，这里用请求时筛选的城市展示
       region: cityFilter.value || '地区不限',
       company: item.company,
-      skillTags: item.skill_tags ?? [],
+      skillTags: item.tags_all ?? [],
     }))
 
     jobList.value = [...jobList.value, ...list]
